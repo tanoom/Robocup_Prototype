@@ -19,8 +19,7 @@
                   <Adjust  _while="decision == 'adjust'"   position="defense" turn_threshold="0.4" max_range="0.6" min_range="0.4" vx_limit="0.2" vy_limit="0.2" vtheta_limit="1.0"  />
                   <Sequence  _while="decision == 'kick'">
                      <SetVelocity />
-                     <Sleep msec="1000" />
-                     <Kick vx_limit="1.2" vy_limit="0.4" min_msec_kick="1000"/>
+                     <Kick vx_limit="1.2" vy_limit="0.4" min_msec_kick="300"/>
                   </Sequence>
             </Sequence>
          </ReactiveSequence>

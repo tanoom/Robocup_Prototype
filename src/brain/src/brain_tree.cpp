@@ -360,7 +360,7 @@ NodeStatus StrikerDecide::tick()
 
     double kickDir = (position == "defense") ? atan2(brain->data->ball.posToField.y, brain->data->ball.posToField.x + brain->config->fieldDimensions.length / 2) : atan2(-brain->data->ball.posToField.y, brain->config->fieldDimensions.length / 2 - brain->data->ball.posToField.x);
     double dir_rb_f = brain->data->robotBallAngleToField;
-    auto goalPostAngles = brain->getGoalPostAngles(0.3);
+    auto goalPostAngles = brain->getGoalPostAngles(0.5);
     double theta_l = goalPostAngles[0];
     double theta_r = goalPostAngles[1];
     bool angleIsGood = (theta_l > dir_rb_f && theta_r < dir_rb_f);
