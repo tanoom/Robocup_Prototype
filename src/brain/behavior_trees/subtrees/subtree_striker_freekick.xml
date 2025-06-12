@@ -17,7 +17,7 @@
             <SubTree ID="CamFindAndTrackBall" _autoremap="true" _while="odom_calibrated"/>
             <StrikerDecide decision_out="{decision}" decision_in="{decision}" chase_threshold="1.5" />
             <SubTree ID="FindBall" _while="decision=='find'" _autoremap="true" />
-            <Chase _while="decision == 'chase'" vx_limit="1.0" vy_limit="0.4" vtheta_limit="0.3" dist="1.5"/>
+            <Chase _while="decision == 'chase'" vx_limit="1.1" vy_limit="0.5" vtheta_limit="0.3" dist="1.5"/>
             <Adjust _while="decision == 'adjust'"  max_range="2.0" min_range="1.5" turn_threshold="0.3" vy_limit="0.6" vtheta_limit="1.0" vx_limit="0.2" position="defense"/>
             <SetVelocity _while="decision == 'kick'" />
             <!-- <CamScanField /> 
