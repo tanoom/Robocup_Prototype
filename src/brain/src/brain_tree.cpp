@@ -35,7 +35,6 @@ void BrainTree::init()
     REGISTER_BUILDER(SelfLocate)
     REGISTER_BUILDER(SetVelocity)
     REGISTER_BUILDER(CheckAndStandUp)
-    REGISTER_BUILDER(CheckAndStandUpPeriodic)
     REGISTER_BUILDER(RotateForRelocate)
     REGISTER_BUILDER(MoveToPoseOnField)
     REGISTER_BUILDER(GoalieDecide)
@@ -457,117 +456,6 @@ NodeStatus CheckAndStandUp::tick()
         brain->data->recoveryPerformed = false;
         brain->data->enterDampingPerformed = false;
         brain->log->log("recovery", rerun::TextLog("Reset recovery, recoveryState: " + to_string(static_cast<int>(brain->data->recoveryState))));
-    }
-
-    return NodeStatus::SUCCESS;
-}
-
-NodeStatus CheckAndStandUpPeriodic::tick()
-{
-    // Initialize timing on first call
-    if (!_initialized) {
-        _lastCheckTime = brain->get_clock()->now();
-        _initialized = true;
-    }
-
-    // Get configuration parameters
-    int checkIntervalMs;
-    int standupTimeoutMs;
-    int relocateTimeoutMs;
-    bool autoRelocateAfterStandup;
-    bool forceRelocateAlways;
-    
-    getInput("check_interval_ms", checkIntervalMs);
-    getInput("standup_timeout_ms", standupTimeoutMs);
-    getInput("relocate_timeout_ms", relocateTimeoutMs);
-    getInput("auto_relocate_after_standup", autoRelocateAfterStandup);
-    getInput("force_relocate_always", forceRelocateAlways);
-
-    // Check if enough time has passed since last check
-    auto now = brain->get_clock()->now();
-    if (brain->msecsSince(_lastCheckTime) < checkIntervalMs) {
-        return NodeStatus::SUCCESS; // Not time to check yet
-    }
-    _lastCheckTime = now;
-
-    // Log periodic check
-    brain->log->log("fall_detection", rerun::TextLog(format(
-        "Periodic fall check - RecoveryState: %d, IsRecoveryAvailable: %d, RobotMode: %d",
-        static_cast<int>(brain->data->recoveryState),
-        brain->data->isRecoveryAvailable,
-        brain->data->currentRobotModeIndex
-    )));
-
-    // Skip if under penalty or in prepare mode
-    if (brain->tree->getEntry<bool>("gc_is_under_penalty") || brain->data->currentRobotModeIndex == 1) {
-        brain->data->needManualRelocate = false;
-        brain->tree->setEntry<bool>("should_recalibrate_after_fall_recovery", false);
-        brain->data->recoveryPerformed = false;
-        brain->data->enterDampingPerformed = false;
-        brain->log->log("fall_detection", rerun::TextLog("Periodic check: reset recovery (penalty or prepare mode)"));
-        return NodeStatus::SUCCESS;
-    }
-    
-    // Check if manual relocate is needed
-    if (brain->data->needManualRelocate) {
-        brain->log->log("fall_detection", rerun::TextLog("Periodic check: need manual relocate"));
-        return NodeStatus::FAILURE;
-    }
-    
-    // Detect fall and initiate standup
-    if (brain->data->recoveryState == RobotRecoveryState::HAS_FALLEN &&
-        brain->data->currentRobotModeIndex != 1 && // not in prepare
-        !brain->data->recoveryPerformed &&
-        !brain->data->enterDampingPerformed) {
-        
-        brain->client->standUp();
-        brain->data->recoveryPerformed = true;
-        brain->data->lastRecoveryTime = brain->get_clock()->now();
-        brain->log->log("fall_detection", rerun::TextLog("Periodic check: Fall detected and standup command sent"));
-    }
-
-    // Handle standup timeout - enter damping mode if standup takes too long
-    auto secondsElapsed = now.seconds() - brain->data->lastRecoveryTime.seconds();
-    if (brain->data->recoveryPerformed &&
-        !brain->data->enterDampingPerformed &&
-        secondsElapsed * 1000 > standupTimeoutMs &&
-        brain->data->recoveryState != RobotRecoveryState::IS_READY) {
-
-        brain->client->enterDamping();
-        brain->data->enterDampingPerformed = true;
-        brain->tree->setEntry<bool>("should_recalibrate_after_fall_recovery", false);
-        brain->log->log("fall_detection", rerun::TextLog(format(
-            "Periodic check: Enter Damping due to timeout, elapsed: %.2f seconds, recoveryState: %d",
-            secondsElapsed, static_cast<int>(brain->data->recoveryState)
-        )));
-    }
-
-    // Handle successful standup - trigger relocalization
-    if (brain->data->recoveryPerformed &&
-        !brain->data->enterDampingPerformed &&
-        brain->data->recoveryState == RobotRecoveryState::IS_READY) {
-        
-        // Trigger relocalization based on configuration
-        if (autoRelocateAfterStandup || forceRelocateAlways) {
-            brain->tree->setEntry<bool>("should_recalibrate_after_fall_recovery", true);
-            brain->log->log("fall_detection", rerun::TextLog(format(
-                "Periodic check: Standup successful, triggering relocalization, elapsed: %.2f seconds",
-                secondsElapsed
-            )));
-        } else {
-            brain->log->log("fall_detection", rerun::TextLog(format(
-                "Periodic check: Standup successful, no relocalization requested, elapsed: %.2f seconds",
-                secondsElapsed
-            )));
-        }
-    }
-
-    // Reset recovery state when robot is standing and in robocup gait
-    if (brain->data->recoveryState == RobotRecoveryState::IS_READY &&
-        brain->data->currentRobotModeIndex == 8) { // in robocup gait
-        brain->data->recoveryPerformed = false;
-        brain->data->enterDampingPerformed = false;
-        brain->log->log("fall_detection", rerun::TextLog("Periodic check: Reset recovery state (standing in robocup gait)"));
     }
 
     return NodeStatus::SUCCESS;

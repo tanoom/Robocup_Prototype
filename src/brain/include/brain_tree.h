@@ -317,30 +317,6 @@ private:
     Brain *brain;
 };
 
-// Enhanced periodic fall detection and recovery
-class CheckAndStandUpPeriodic : public SyncActionNode
-{
-public:
-    CheckAndStandUpPeriodic(const string &name, const NodeConfig &config, Brain *_brain) : SyncActionNode(name, config), brain(_brain) {}
-
-    static PortsList providedPorts() {
-        return {
-            InputPort<int>("check_interval_ms", 100, "Interval in milliseconds to check for falls"),
-            InputPort<int>("standup_timeout_ms", 10000, "Timeout in milliseconds before entering damping mode"),
-            InputPort<int>("relocate_timeout_ms", 10000, "Timeout in milliseconds for relocation attempts"),
-            InputPort<bool>("auto_relocate_after_standup", true, "Whether to automatically relocate after successful standup"),
-            InputPort<bool>("force_relocate_always", false, "Force relocalization on every successful standup")
-        };
-    }
-
-    NodeStatus tick() override;
-
-private:
-    Brain *brain;
-    rclcpp::Time _lastCheckTime;
-    bool _initialized = false;
-};
-
 // 起身后的转身定位
 class RotateForRelocate : public StatefulActionNode
 {
