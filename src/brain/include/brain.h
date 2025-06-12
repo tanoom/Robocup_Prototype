@@ -89,6 +89,7 @@ private:
     vector<GameObject> getGameObjects(const vision_interface::msg::Detections &msg);
     void detectProcessBalls(const vector<GameObject> &ballObjs);
     void detectProcessMarkings(const vector<GameObject> &markingObjs);
+    void detectProcessGoalposts(const vector<GameObject> &goalpostObjs);
     // 处理跌到爬起状态信息
     void recoveryStateCallback(const booster_interface::msg::RawBytesMsg &msg);
 

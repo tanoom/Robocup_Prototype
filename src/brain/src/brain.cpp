@@ -382,6 +382,7 @@ void Brain::detectionsCallback(const vision_interface::msg::Detections &msg)
 
     detectProcessBalls(balls);
     detectProcessMarkings(markings);
+    detectProcessGoalposts(goalPosts);
 
     if (!log->isEnabled())
         return;
@@ -700,5 +701,27 @@ void Brain::detectProcessMarkings(const vector<GameObject> &markingObjs)
             continue;
 
         data->markings.push_back(marking);
+    }
+}
+
+void Brain::detectProcessGoalposts(const vector<GameObject> &goalpostObjs)
+{
+    const double confidenceValve = 0.3;  // Minimum confidence for goalpost detection
+
+    data->goalposts.clear();
+
+    for (int i = 0; i < goalpostObjs.size(); i++)
+    {
+        auto goalpost = goalpostObjs[i];
+
+        // Filter by confidence
+        if (goalpost.confidence < confidenceValve)
+            continue;
+
+        // Filter by reasonable distance (goalposts shouldn't be too close or too far)
+        if (goalpost.posToRobot.x < -0.5 || goalpost.posToRobot.x > 15.0)
+            continue;
+
+        data->goalposts.push_back(goalpost);
     }
 }
