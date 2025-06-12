@@ -76,6 +76,11 @@ void VisionNode::Init(const std::string &cfg_template_path, const std::string &c
         pose_estimator_map_["human_like"]->Init(node["human_like_pose_estimator"]);
     }
 
+    if (node["goalpost_pose_estimator"]) {
+        pose_estimator_map_["goalpost"] = std::make_shared<GoalpostPoseEstimator>(intr_);
+        pose_estimator_map_["goalpost"]->Init(node["goalpost_pose_estimator"]);
+    }
+
     // init ros related
     std::string color_topic = "/camera/camera/color/image_raw";
     std::string depth_topic = "/camera/camera/aligned_depth_to_color/image_raw";
@@ -126,7 +131,9 @@ void VisionNode::ColorCallback(const sensor_msgs::msg::Image::ConstSharedPtr &ms
     auto get_estimator = [&](const std::string &class_name) {
         if (class_name == "Ball") {
             return pose_estimator_map_.find("ball") != pose_estimator_map_.end() ? pose_estimator_map_["ball"] : pose_estimator_map_["default"];
-        } else if (class_name == "Person" || class_name == "Opponent" || class_name == "Goalpost") {
+        } else if (class_name == "Goalpost") {
+            return pose_estimator_map_.find("goalpost") != pose_estimator_map_.end() ? pose_estimator_map_["goalpost"] : pose_estimator_map_["default"];
+        } else if (class_name == "Person" || class_name == "Opponent") {
             return pose_estimator_map_.find("human_like") != pose_estimator_map_.end() ? pose_estimator_map_["human_like"] : pose_estimator_map_["default"];
         } else if (class_name.find("Cross") != std::string::npos || class_name == "PenaltyPoint") {
             return pose_estimator_map_.find("field_marker") != pose_estimator_map_.end() ? pose_estimator_map_["field_marker"] : pose_estimator_map_["default"];

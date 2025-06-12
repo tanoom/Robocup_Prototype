@@ -121,4 +121,16 @@ Pose HumanLikePoseEstimator::EstimateByDepth(const Pose &p_eye2base, const Detec
     return pose;
 }
 
+void GoalpostPoseEstimator::Init(const YAML::Node &node) {
+    use_depth_ = as_or<bool>(node["use_depth"], false);
+}
+
+Pose GoalpostPoseEstimator::EstimateByColor(const Pose &p_eye2base, const DetectionRes &detection, const cv::Mat &rgb) {
+    auto bbox = detection.bbox;
+    // Calculate position at the bottom center of the goalpost bounding box
+    cv::Point2f target_uv = cv::Point2f(bbox.x + bbox.width / 2, bbox.y + bbox.height);  // Bottom center instead of center
+    cv::Point3f target_xyz = CalculatePositionByIntersection(p_eye2base, target_uv, intr_);
+    return Pose(target_xyz.x, target_xyz.y, target_xyz.z, 0, 0, 0);
+}
+
 } // namespace booster_vision

@@ -64,5 +64,19 @@ private:
     float fitting_distance_threshold_;
 };
 
+class GoalpostPoseEstimator : public PoseEstimator {
+public:
+    GoalpostPoseEstimator(const Intrinsics &intr) :
+        PoseEstimator(intr) {
+    }
+    ~GoalpostPoseEstimator() = default;
+
+    void Init(const YAML::Node &node) override;
+    Pose EstimateByColor(const Pose &p_eye2base, const DetectionRes &detection, const cv::Mat &rgb) override;
+
+private:
+    bool use_depth_;
+};
+
 cv::Point3f CalculatePositionByIntersection(const Pose &p_eye2base, const cv::Point2f target_uv, const Intrinsics &intr);
 } // namespace booster_vision
