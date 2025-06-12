@@ -30,7 +30,7 @@ struct PoseBox2D
 
 struct FieldMarker
 {
-	char type;			// L|T|X|P|G, representing different types of landmark points, where P represents the penalty mark and G represents goalpost.
+	char type;			// L|T|X|P, representing different types of landmark points, where P represents the penalty mark.
 	double x, y; // The position of the landmark point (in meters).
 	double confidence;	// The recognition confidence level.
 };

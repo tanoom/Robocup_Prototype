@@ -4,8 +4,6 @@
 vector<FieldMarker> BrainData::getMarkers()
 {
     vector<FieldMarker> res;
-    
-    // Process field markings (crosses and penalty points)
     for (size_t i = 0; i < markings.size(); i++)
     {
         auto label = markings[i].label;
@@ -23,22 +21,8 @@ vector<FieldMarker> BrainData::getMarkers()
         else if (label == "PenaltyPoint")
             markerType = 'P';
 
-        if (markerType != ' ')
-            res.push_back(FieldMarker{markerType, x, y, confidence});
+        res.push_back(FieldMarker{markerType, x, y, confidence});
     }
-    
-    // Process goalposts
-    for (size_t i = 0; i < goalposts.size(); i++)
-    {
-        auto goalpost = goalposts[i];
-        auto x = goalpost.posToRobot.x;
-        auto y = goalpost.posToRobot.y;
-        auto confidence = goalpost.confidence;
-
-        // Add goalpost as 'G' type marker
-        res.push_back(FieldMarker{'G', x, y, confidence});
-    }
-    
     return res;
 }
 

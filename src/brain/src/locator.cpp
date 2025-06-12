@@ -21,12 +21,6 @@ void Locator::calcFieldMarkers(FieldDimensions fd)
     fieldMarkers.push_back(FieldMarker{'P', fd.length / 2 - fd.penaltyDist, 0.0});
     fieldMarkers.push_back(FieldMarker{'P', -fd.length / 2 + fd.penaltyDist, 0.0});
 
-    // Goalposts - left and right posts for each goal
-    fieldMarkers.push_back(FieldMarker{'G', fd.length / 2, fd.goalWidth / 2});      // Opponent goal left post
-    fieldMarkers.push_back(FieldMarker{'G', fd.length / 2, -fd.goalWidth / 2});     // Opponent goal right post
-    fieldMarkers.push_back(FieldMarker{'G', -fd.length / 2, fd.goalWidth / 2});     // Own goal left post
-    fieldMarkers.push_back(FieldMarker{'G', -fd.length / 2, -fd.goalWidth / 2});    // Own goal right post
-
     // Center of the sideline
     fieldMarkers.push_back(FieldMarker{'T', 0.0, fd.width / 2});
     fieldMarkers.push_back(FieldMarker{'T', 0.0, -fd.width / 2});
