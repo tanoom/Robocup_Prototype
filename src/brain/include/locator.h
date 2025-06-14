@@ -67,6 +67,7 @@ public:
 	double numShrinkRatio = 0.85;	// During each resampling, the number of particles is this proportion of that in the previous time.
 	double offsetShrinkRatio = 0.8; // During each resampling, the offsets of x, y, and theta are reduced to this proportion compared to the previous time.
 	double minMarkerCnt = 3;		// The minimum number of Markers required.
+	double maxReliableDistanceRatio = 0.4; // Maximum reliable distance as ratio of field length (0.5 = half field)
 
 	// Data storage
 	vector<FieldMarker> fieldMarkers;
@@ -218,4 +219,30 @@ public:
 	 *
 	 */
 	void logParticles();
+
+	/**
+	 * @brief Calculate enhanced confidence for a marker based on its distance from the robot.
+	 *
+	 * @param baseConfidence double The original confidence of the marker.
+	 * @param distance double The distance from robot to marker.
+	 *
+	 * @return double The enhanced confidence value.
+	 */
+	inline double calcEnhancedConfidence(double baseConfidence, double distance)
+	{
+		double distanceBonus = 1.0 / (1.0 + distance / 2.0); // Closer markers get higher bonus
+		return baseConfidence * distanceBonus;
+	}
+
+	/**
+	 * @brief Check if a marker is within reliable distance range.
+	 *
+	 * @param distance double The distance from robot to marker.
+	 *
+	 * @return bool True if marker is within reliable range.
+	 */
+	inline bool isMarkerReliable(double distance)
+	{
+		return distance <= (fieldDimensions.length * maxReliableDistanceRatio);
+	}
 };

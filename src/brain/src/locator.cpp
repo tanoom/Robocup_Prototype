@@ -172,9 +172,19 @@ double Locator::residual(vector<FieldMarker> markers_r, Pose2D pose)
     {
         auto marker_r = markers_r[i];
         double dist = max(norm(marker_r.x, marker_r.y), 0.1);
+        
+        // Filter out markers that are too far using helper function
+        if (!isMarkerReliable(dist)) {
+            continue; // Skip this marker
+        }
+        
         auto marker_f = markerToFieldFrame(marker_r, pose);
-        double conf = max(marker_r.confidence, 0.1);
-        res += minDist(marker_f) * conf / 100.0 / dist * 3;
+        
+        // Enhanced confidence calculation using helper function
+        double baseConf = max(marker_r.confidence, 0.1);
+        //double enhancedConf = calcEnhancedConfidence(baseConf, dist);
+        
+        res += minDist(marker_f) * baseConf / 100.0 / dist * 3;
     }
 
     return res;
@@ -188,16 +198,31 @@ Pose2D Locator::finalAdjust(vector<FieldMarker> markers_r, Pose2D pose)
     double dx = 0;
     double dy = 0;
     double dtheta = 0;
+    int validMarkerCount = 0;
+    
     for (int i = 0; i < markers_r.size(); i++)
     {
         auto marker_r = markers_r[i];
+        double dist = max(norm(marker_r.x, marker_r.y), 0.1);
+        
+        // Apply same distance filtering using helper function
+        if (!isMarkerReliable(dist)) {
+            continue; // Skip this marker
+        }
+        
         auto marker_f = markerToFieldFrame(marker_r, pose);
         auto offset = getOffset(marker_f);
         dx += offset[0];
         dy += offset[1];
+        validMarkerCount++;
     }
-    dx /= markers_r.size();
-    dy /= markers_r.size();
+    
+    if (validMarkerCount == 0) {
+        return pose; // No valid markers for adjustment
+    }
+    
+    dx /= validMarkerCount;
+    dy /= validMarkerCount;
 
     return Pose2D{pose.x + dx, pose.y + dy, pose.theta};
 }
