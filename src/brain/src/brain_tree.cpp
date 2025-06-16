@@ -331,33 +331,30 @@ NodeStatus Adjust::tick()
     double ballRange = brain->data->ball.range;
     double ballYaw = brain->data->ball.yawToRobot;
 
-    double s = 0.4;
+    // Calculate speed scaling factor based on angle difference
+    double angleDiff = fabs(deltaDir);
+    double speedScale = 1.0;
+    if (angleDiff > M_PI/4) {  // If angle difference is large (>45 degrees)
+        speedScale = 2.0;      // Move faster
+    } else if (angleDiff > M_PI/8) {  // If angle difference is medium (>22.5 degrees)
+        speedScale = 1.5;      // Move moderately fast
+    }
+    
+    double s = 0.4 * speedScale;  // Apply speed scaling to base movement speed
     double r = 0.8;
     
     // Base circling movement
     vx = -s * dir * sin(ballYaw);
     vy = s * dir * cos(ballYaw);
     
-    if (ballRange > turnThreshold) {
-        // Calculate approach direction
-        double norm = sqrt(brain->data->ball.posToRobot.x * brain->data->ball.posToRobot.x + 
-                          brain->data->ball.posToRobot.y * brain->data->ball.posToRobot.y);
-        
-        // Combine circling with approach
-        vx += 0.1 * brain->data->ball.posToRobot.x / norm;
-        vy += 0.1 * brain->data->ball.posToRobot.y / norm;
-    } else {
-        // When close enough, focus on turning to face the ball
-        vtheta = 2 * (ballYaw - dir * s);
-    }
+    // Maintain distance to maxRange
+    if (ballRange > maxRange)
+        vx += 0.1;
+    if (ballRange < maxRange)
+        vx -= 0.1;
     
-    if (ballRange < minRange) {
-        // Move away from ball when too close
-        double norm = sqrt(brain->data->ball.posToRobot.x * brain->data->ball.posToRobot.x + 
-                          brain->data->ball.posToRobot.y * brain->data->ball.posToRobot.y);
-        vx = -0.1 * brain->data->ball.posToRobot.x / norm;
-        vy = -0.1 * brain->data->ball.posToRobot.y / norm;
-    }
+    // Continuous turning control
+    vtheta = (ballYaw - dir * s) / r;
 
     vx = cap(vx, vxLimit, -vxLimit);
     vy = cap(vy, vyLimit, -vyLimit);
