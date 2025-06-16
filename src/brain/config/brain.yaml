@@ -17,5 +17,5 @@ brain_node:
 
     rerunLog:
       enable: true
-      server_addr: "192.168.30.202:9876"
+      server_addr: "192.168.30.104:9876"
       img_interval: 1

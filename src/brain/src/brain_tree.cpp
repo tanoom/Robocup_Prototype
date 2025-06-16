@@ -333,13 +333,31 @@ NodeStatus Adjust::tick()
 
     double s = 0.4;
     double r = 0.8;
+    
+    // Base circling movement
     vx = -s * dir * sin(ballYaw);
-    if (ballRange > maxRange)
-        vx += 0.1;
-    if (ballRange < maxRange)
-        vx -= 0.1;
     vy = s * dir * cos(ballYaw);
-    vtheta = (ballYaw - dir * s) / r;
+    
+    if (ballRange > turnThreshold) {
+        // Calculate approach direction
+        double norm = sqrt(brain->data->ball.posToRobot.x * brain->data->ball.posToRobot.x + 
+                          brain->data->ball.posToRobot.y * brain->data->ball.posToRobot.y);
+        
+        // Combine circling with approach
+        vx += 0.1 * brain->data->ball.posToRobot.x / norm;
+        vy += 0.1 * brain->data->ball.posToRobot.y / norm;
+    } else {
+        // When close enough, focus on turning to face the ball
+        vtheta = 2 * (ballYaw - dir * s);
+    }
+    
+    if (ballRange < minRange) {
+        // Move away from ball when too close
+        double norm = sqrt(brain->data->ball.posToRobot.x * brain->data->ball.posToRobot.x + 
+                          brain->data->ball.posToRobot.y * brain->data->ball.posToRobot.y);
+        vx = -0.1 * brain->data->ball.posToRobot.x / norm;
+        vy = -0.1 * brain->data->ball.posToRobot.y / norm;
+    }
 
     vx = cap(vx, vxLimit, -vxLimit);
     vy = cap(vy, vyLimit, -vyLimit);
