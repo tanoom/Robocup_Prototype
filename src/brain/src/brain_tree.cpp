@@ -335,10 +335,12 @@ NodeStatus Adjust::tick()
     double angleDiff = fabs(deltaDir);
     double speedScale = 1.0;
     if (angleDiff > M_PI/4) {  // If angle difference is large (>45 degrees)
-        speedScale = 2.0;      // Move faster
+        speedScale = 0.6;      // Move faster
     } else if (angleDiff > M_PI/8) {  // If angle difference is medium (>22.5 degrees)
-        speedScale = 1.5;      // Move moderately fast
+        speedScale = 0.3;      // Move moderately fast
     }
+    
+    std::cout << "[DEBUG] speedScale: " << speedScale << ", angleDiff: " << angleDiff << std::endl;
     
     double s = 0.4 * speedScale;  // Apply speed scaling to base movement speed
     double r = 0.8;
@@ -346,6 +348,8 @@ NodeStatus Adjust::tick()
     // Base circling movement
     vx = -s * dir * sin(ballYaw);
     vy = s * dir * cos(ballYaw);
+
+    std::cout << "[DEBUG] vx: " << vx << ", vy: " << vy << std::endl;
     
     // Maintain distance to maxRange
     if (ballRange > maxRange)
