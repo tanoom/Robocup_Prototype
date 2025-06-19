@@ -1,4 +1,5 @@
 #include <cmath>
+#include <limits>
 #include "brain_tree.h"
 #include "brain.h"
 #include "utils/math.h"
@@ -334,15 +335,17 @@ NodeStatus Adjust::tick()
     // Calculate speed scaling factor based on angle difference
     double angleDiff = fabs(deltaDir);
     double speedScale = 1.0;
-    if (angleDiff > M_PI/4) {  // If angle difference is large (>45 degrees)
-        speedScale = 0.6;      // Move faster
-    } else if (angleDiff > M_PI/8) {  // If angle difference is medium (>22.5 degrees)
+    if (angleDiff > M_PI/2) {  // If angle difference is large (>45 degrees)
+        speedScale = 0.8;      // Move faster
+    } else if (angleDiff > M_PI/4) {  // If angle difference is medium (>22.5 degrees)
+        speedScale = 0.6;      // Move moderately fast
+    } else if (angleDiff > M_PI/8) {
         speedScale = 0.3;      // Move moderately fast
     }
     
     std::cout << "[DEBUG] speedScale: " << speedScale << ", angleDiff: " << angleDiff << std::endl;
     
-    double s = 0.4 * speedScale;  // Apply speed scaling to base movement speed
+    double s = speedScale;  // Apply speed scaling to base movement speed
     double r = 0.8;
     
     // Base circling movement
@@ -731,6 +734,79 @@ NodeStatus SelfLocate::tick()
         yMax = brain->config->fieldDimensions.width / 2 + 2;
         thetaMin = brain->data->robotPoseToField.theta - M_PI / 180;
         thetaMax = brain->data->robotPoseToField.theta + M_PI / 180;
+    }
+    else if (mode == "penalty_point_localize")
+    {
+        // Check if we can see a penalty point marker within 2 meters
+        FieldMarker penaltyMarker;
+        bool foundPenaltyPoint = false;
+        double minDistance = std::numeric_limits<double>::infinity();
+        
+        // Find the closest penalty point marker within 2 meters
+        for (const auto& marker : markers) {
+            if (marker.type == 'P') {
+                double distance = sqrt(marker.x * marker.x + marker.y * marker.y);
+                if (distance <= 2.0 && distance < minDistance) {
+                    minDistance = distance;
+                    penaltyMarker = marker;
+                    foundPenaltyPoint = true;
+                }
+            }
+        }
+        
+        if (foundPenaltyPoint) {
+            // Calculate robot position based on the penalty point
+            auto fd = brain->config->fieldDimensions;
+            
+            // Penalty point positions in field coordinates:
+            // Right penalty point: (fd.length / 2 - fd.penaltyDist, 0.0)
+            // Left penalty point: (-fd.length / 2 + fd.penaltyDist, 0.0)
+            double rightPenaltyX = fd.length / 2 - fd.penaltyDist;
+            double leftPenaltyX = -fd.length / 2 + fd.penaltyDist;
+            
+            // Determine which penalty point we're seeing based on current robot position estimate
+            double currentX = brain->data->robotPoseToField.x;
+            bool isRightPenalty = (abs(currentX - rightPenaltyX) < abs(currentX - leftPenaltyX));
+            
+            // Get the actual penalty point position in field coordinates
+            double penaltyFieldX = isRightPenalty ? rightPenaltyX : leftPenaltyX;
+            double penaltyFieldY = 0.0;
+            
+            // Calculate robot position: penalty_field = robot_pose + R * penalty_robot
+            // where R is rotation matrix and penalty_robot is the observed marker position
+            double observedX = penaltyMarker.x;
+            double observedY = penaltyMarker.y;
+            double currentTheta = brain->data->robotPoseToField.theta;
+            
+            // Robot position = penalty_field - R * penalty_robot
+            double robotX = penaltyFieldX - (cos(currentTheta) * observedX - sin(currentTheta) * observedY);
+            double robotY = penaltyFieldY - (sin(currentTheta) * observedX + cos(currentTheta) * observedY);
+            
+            // Use current theta with small adjustment tolerance
+            double robotTheta = currentTheta;
+            
+            // Direct localization without using particle filter
+            brain->calibrateOdom(robotX, robotY, robotTheta);
+            brain->tree->setEntry<bool>("odom_calibrated", true);
+            brain->data->lastSuccessfulLocalizeTime = brain->get_clock()->now();
+            
+            prtDebug("penalty point localize success: " + to_string(robotX) + " " + to_string(robotY) + " " + to_string(rad2deg(robotTheta)) + 
+                     " penalty: " + (isRightPenalty ? "right" : "left") + " dist: " + to_string(minDistance));
+            
+            return NodeStatus::SUCCESS;
+        }
+        else {
+            // No penalty point found within range, fall back to normal localization
+            prtDebug("penalty point localize: no penalty point found within 2m, falling back to normal localization");
+            
+            // Set reasonable constraints for normal localization
+            xMin = -brain->config->fieldDimensions.length / 2;
+            xMax = brain->config->fieldDimensions.length / 2;
+            yMin = -brain->config->fieldDimensions.width / 2;
+            yMax = brain->config->fieldDimensions.width / 2;
+            thetaMin = -M_PI;
+            thetaMax = M_PI;
+        }
     }
 
 

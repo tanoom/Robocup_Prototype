@@ -46,6 +46,7 @@
                         </ReactiveSequence>
 
                         <ReactiveSequence _while="gc_game_state=='PLAY'" name="play">
+                            <SelfLocate mode="penalty_point_localize" _while="odom_calibrated" />
                             <SubTree ID="StrikerPlay" _autoremap="true" _while="player_role == 'striker'" />
                             <SubTree ID="GoalKeeperPlay" _autoremap="true" _while="player_role == 'goal_keeper'" />
                         </ReactiveSequence>

@@ -5,10 +5,12 @@
       <ReactiveSequence _while="player_role == 'striker'">
          <ReactiveSequence _while="wait_for_opponent_kickoff" name="wait">
             <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
+            <SelfLocate mode="penalty_point_localize" _while="odom_calibrated" />
             <SetVelocity />
          </ReactiveSequence>
          <ReactiveSequence _while="!wait_for_opponent_kickoff" name="start">
             <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
+            <SelfLocate mode="penalty_point_localize" _while="odom_calibrated" />
             <Sequence>
                   <ReactiveSequence>
                      <StrikerDecide decision_out="{decision}" decision_in="{decision}" chase_threshold="1.2" />

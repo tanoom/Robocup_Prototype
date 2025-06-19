@@ -4,10 +4,12 @@
       <ReactiveSequence >
          <ReactiveSequence _while="!gamecontroller_isKickOffExecuted" name="wait">
             <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
+            <SelfLocate mode="penalty_point_localize" _while="odom_calibrated" />
             <SetVelocity />
          </ReactiveSequence>
          <ReactiveSequence _while="gamecontroller_isKickOffExecuted" name="start">
             <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
+            <SelfLocate mode="penalty_point_localize" _while="odom_calibrated" />
             <Sequence>
                   <GoalieDecide decision_out="{decision}" decision_in="{decision}" chase_threshold="1.2" />
                   <Sequence _while="decision == 'find'">
