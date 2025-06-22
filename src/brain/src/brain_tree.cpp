@@ -82,6 +82,9 @@ void BrainTree::initEntry()
 
     setEntry<bool>("we_just_scored", false);
     setEntry<bool>("wait_for_opponent_kickoff", false);
+    
+    // 罚球点定位相关
+    setEntry<bool>("trigger_penalty_point_localize", false);
 }
 
 void BrainTree::tick()
@@ -334,14 +337,14 @@ NodeStatus Adjust::tick()
 
     // Calculate speed scaling factor based on angle difference
     double angleDiff = fabs(deltaDir);
-    double speedScale = 1.0;
-    if (angleDiff > M_PI/2) {  // If angle difference is large (>45 degrees)
-        speedScale = 0.8;      // Move faster
-    } else if (angleDiff > M_PI/4) {  // If angle difference is medium (>22.5 degrees)
-        speedScale = 0.6;      // Move moderately fast
-    } else if (angleDiff > M_PI/8) {
-        speedScale = 0.3;      // Move moderately fast
-    }
+    double speedScale = 0.4;
+    // if (angleDiff > M_PI/2) {  // If angle difference is large (>45 degrees)
+    //     speedScale = 0.8;      // Move faster
+    // } else if (angleDiff > M_PI/4) {  // If angle difference is medium (>22.5 degrees)
+    //     speedScale = 0.6;      // Move moderately fast
+    // } else if (angleDiff > M_PI/8) {
+    //     speedScale = 0.3;      // Move moderately fast
+    // }
     
     std::cout << "[DEBUG] speedScale: " << speedScale << ", angleDiff: " << angleDiff << std::endl;
     
@@ -737,17 +740,31 @@ NodeStatus SelfLocate::tick()
     }
     else if (mode == "penalty_point_localize")
     {
-        // Check if we can see a penalty point marker within 2 meters
+        // 添加调用间隔限制，防止频繁调用导致定位到对面半场
+        static rclcpp::Time lastPenaltyLocalizeTime = rclcpp::Time(0LL, RCL_CLOCK_UNINITIALIZED);
+        auto currentTime = brain->get_clock()->now();
+        
+        // 如果是第一次调用，直接初始化时间
+        if (lastPenaltyLocalizeTime.get_clock_type() == RCL_CLOCK_UNINITIALIZED) {
+            lastPenaltyLocalizeTime = currentTime;
+        }
+        
+        auto elapsed = (currentTime - lastPenaltyLocalizeTime).seconds();
+        
+        if (elapsed < 3.0) { // 3秒内不允许重复调用
+            prtDebug("penalty_point_localize 调用过于频繁，距离上次调用仅 " + to_string(elapsed) + " 秒，需要等待 3 秒间隔");
+            return NodeStatus::SUCCESS; // 直接返回成功，不执行定位
+        }
+        
+        // Check if we can see a penalty point marker within 5 meters
         FieldMarker penaltyMarker;
         bool foundPenaltyPoint = false;
-        double minDistance = std::numeric_limits<double>::infinity();
         
-        // Find the closest penalty point marker within 2 meters
+        // Find a penalty point marker within 5 meters
         for (const auto& marker : markers) {
             if (marker.type == 'P') {
                 double distance = sqrt(marker.x * marker.x + marker.y * marker.y);
-                if (distance <= 2.0 && distance < minDistance) {
-                    minDistance = distance;
+                if (distance <= 5.0) {
                     penaltyMarker = marker;
                     foundPenaltyPoint = true;
                 }
@@ -755,6 +772,9 @@ NodeStatus SelfLocate::tick()
         }
         
         if (foundPenaltyPoint) {
+            // 更新最后调用时间
+            lastPenaltyLocalizeTime = currentTime;
+            
             // Calculate robot position based on the penalty point
             auto fd = brain->config->fieldDimensions;
             
@@ -777,6 +797,7 @@ NodeStatus SelfLocate::tick()
             double observedX = penaltyMarker.x;
             double observedY = penaltyMarker.y;
             double currentTheta = brain->data->robotPoseToField.theta;
+            double distance = sqrt(observedX * observedX + observedY * observedY);
             
             // Robot position = penalty_field - R * penalty_robot
             double robotX = penaltyFieldX - (cos(currentTheta) * observedX - sin(currentTheta) * observedY);
@@ -791,13 +812,16 @@ NodeStatus SelfLocate::tick()
             brain->data->lastSuccessfulLocalizeTime = brain->get_clock()->now();
             
             prtDebug("penalty point localize success: " + to_string(robotX) + " " + to_string(robotY) + " " + to_string(rad2deg(robotTheta)) + 
-                     " penalty: " + (isRightPenalty ? "right" : "left") + " dist: " + to_string(minDistance));
+                     " penalty: " + (isRightPenalty ? "right" : "left"));
             
             return NodeStatus::SUCCESS;
         }
         else {
+            // 即使没找到罚球点，也要更新时间避免频繁尝试
+            lastPenaltyLocalizeTime = currentTime;
+            
             // No penalty point found within range, fall back to normal localization
-            prtDebug("penalty point localize: no penalty point found within 2m, falling back to normal localization");
+            prtDebug("penalty point localize: no penalty point found within 5m, falling back to normal localization");
             
             // Set reasonable constraints for normal localization
             xMin = -brain->config->fieldDimensions.length / 2;

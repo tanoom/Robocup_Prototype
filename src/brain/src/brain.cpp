@@ -235,6 +235,73 @@ double Brain::msecsSince(rclcpp::Time time)
     return (this->get_clock()->now() - time).nanoseconds() / 1e6;
 }
 
+bool Brain::executePenaltyPointLocalize()
+{
+    auto markers = data->getMarkers();
+    
+    // Check if we can see a penalty point marker within 5 meters
+    FieldMarker penaltyMarker;
+    bool foundPenaltyPoint = false;
+    
+    // Find a penalty point marker within 5 meters
+    for (const auto& marker : markers) {
+        if (marker.type == 'P') {
+            double distance = sqrt(marker.x * marker.x + marker.y * marker.y);
+            if (distance <= 5.0) {
+                penaltyMarker = marker;
+                foundPenaltyPoint = true;
+            }
+        }
+    }
+    
+    if (foundPenaltyPoint) {
+        // Calculate robot position based on the penalty point
+        auto fd = config->fieldDimensions;
+        
+        // Penalty point positions in field coordinates:
+        // Right penalty point: (fd.length / 2 - fd.penaltyDist, 0.0)
+        // Left penalty point: (-fd.length / 2 + fd.penaltyDist, 0.0)
+        double rightPenaltyX = fd.length / 2 - fd.penaltyDist;
+        double leftPenaltyX = -fd.length / 2 + fd.penaltyDist;
+        
+        // Determine which penalty point we're seeing based on current robot position estimate
+        double currentX = data->robotPoseToField.x;
+        bool isRightPenalty = (abs(currentX - rightPenaltyX) < abs(currentX - leftPenaltyX));
+        
+        // Get the actual penalty point position in field coordinates
+        double penaltyFieldX = isRightPenalty ? rightPenaltyX : leftPenaltyX;
+        double penaltyFieldY = 0.0;
+        
+        // Calculate robot position: penalty_field = robot_pose + R * penalty_robot
+        // where R is rotation matrix and penalty_robot is the observed marker position
+        double observedX = penaltyMarker.x;
+        double observedY = penaltyMarker.y;
+        double currentTheta = data->robotPoseToField.theta;
+        double distance = sqrt(observedX * observedX + observedY * observedY);
+        
+        // Robot position = penalty_field - R * penalty_robot
+        double robotX = penaltyFieldX - (cos(currentTheta) * observedX - sin(currentTheta) * observedY);
+        double robotY = penaltyFieldY - (sin(currentTheta) * observedX + cos(currentTheta) * observedY);
+        
+        // Use current theta with small adjustment tolerance
+        double robotTheta = currentTheta;
+        
+        // Direct localization without using particle filter
+        calibrateOdom(robotX, robotY, robotTheta);
+        tree->setEntry<bool>("odom_calibrated", true);
+        data->lastSuccessfulLocalizeTime = get_clock()->now();
+        
+        prtDebug("手柄触发罚球点定位成功: " + to_string(robotX) + " " + to_string(robotY) + " " + to_string(rad2deg(robotTheta)) + 
+                 " penalty: " + (isRightPenalty ? "right" : "left") + " dist: " + to_string(distance));
+        
+        return true;
+    }
+    else {
+        prtDebug("手柄触发罚球点定位失败: 未在5米范围内找到罚球点");
+        return false;
+    }
+}
+
 void Brain::joystickCallback(const booster_interface::msg::RemoteControllerState &joy)
 {
     prtDebug("joy!!");
@@ -250,6 +317,18 @@ void Brain::joystickCallback(const booster_interface::msg::RemoteControllerState
         {
             tree->setEntry<bool>("B_pressed", false);
             prtDebug("B is released");
+        }
+        
+        // 添加 START 按键处理 - 触发罚球点定位
+        if (joy.start)
+        {
+            prtDebug("START 按键按下 - 开始执行罚球点定位");
+            bool success = executePenaltyPointLocalize();
+            if (success) {
+                prtDebug("罚球点定位成功!");
+            } else {
+                prtDebug("罚球点定位失败!");
+            }
         }
     }
     else if (joy.lt && !joy.rt && !joy.lb && !joy.rb)
@@ -467,6 +546,32 @@ void Brain::odometerCallback(const booster_interface::msg::Odometer &msg)
              rerun::Points2D({{data->robotPoseToField.x, -data->robotPoseToField.y}, {data->robotPoseToField.x + 0.1 * cos(data->robotPoseToField.theta), -data->robotPoseToField.y - 0.1 * sin(data->robotPoseToField.theta)}})
                  .with_radii({0.2, 0.1})
                  .with_colors({0xFF6666FF, 0xFF0000FF}));
+    
+    // Draw penalty points on the field
+    auto fd = config->fieldDimensions;
+    double rightPenaltyX = fd.length / 2 - fd.penaltyDist;
+    double leftPenaltyX = -fd.length / 2 + fd.penaltyDist;
+    
+    std::vector<rerun::Position2D> penaltyPoints = {
+        rerun::Position2D(rightPenaltyX, 0.0f),  // Right penalty point
+        rerun::Position2D(leftPenaltyX, 0.0f)    // Left penalty point
+    };
+    std::vector<rerun::Color> penaltyColors = {
+        rerun::Color(255, 0, 0),    // Red for right penalty point
+        rerun::Color(0, 0, 255)     // Blue for left penalty point
+    };
+    std::vector<rerun::components::Text> penaltyLabels = {
+        rerun::components::Text("Right Penalty"),
+        rerun::components::Text("Left Penalty")
+    };
+    
+    log->log("field/penalty_points", 
+        rerun::Points2D(penaltyPoints)
+            .with_colors(penaltyColors)
+            .with_radii({0.1f, 0.1f})
+            .with_labels(penaltyLabels)
+            .with_show_labels(true)
+    );
 }
 
 void Brain::lowStateCallback(const booster_interface::msg::LowState &msg)
