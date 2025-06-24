@@ -764,9 +764,11 @@ NodeStatus SelfLocate::tick()
         for (const auto& marker : markers) {
             if (marker.type == 'P') {
                 double distance = sqrt(marker.x * marker.x + marker.y * marker.y);
+                brain->log->log("locator/penalty_point", rerun::TextLog("Found penalty point marker, Distance: " + to_string(distance) + " 米"));
                 if (distance <= 5.0) {
                     penaltyMarker = marker;
                     foundPenaltyPoint = true;
+                    brain->log->log("locator/penalty_point", rerun::TextLog("penalty point marker is within 5 meters: (" + to_string(marker.x) + ", " + to_string(marker.y) + ")"));
                 }
             }
         }
@@ -806,31 +808,19 @@ NodeStatus SelfLocate::tick()
             // Use current theta with small adjustment tolerance
             double robotTheta = currentTheta;
             
+            brain->log->log("locator/penalty_point", rerun::TextLog("Robot Pose: (" + to_string(robotX) + ", " + to_string(robotY) + ", " + to_string(rad2deg(robotTheta)) + "°)"));
+            
             // Direct localization without using particle filter
             brain->calibrateOdom(robotX, robotY, robotTheta);
             brain->tree->setEntry<bool>("odom_calibrated", true);
             brain->data->lastSuccessfulLocalizeTime = brain->get_clock()->now();
             
+            brain->log->log("locator/penalty_point", rerun::TextLog("Succes Locate! use" + string(isRightPenalty ? "Right" : "Left") + "Penalty Point"));
             prtDebug("penalty point localize success: " + to_string(robotX) + " " + to_string(robotY) + " " + to_string(rad2deg(robotTheta)) + 
                      " penalty: " + (isRightPenalty ? "right" : "left"));
             
-            return NodeStatus::SUCCESS;
         }
-        else {
-            // 即使没找到罚球点，也要更新时间避免频繁尝试
-            lastPenaltyLocalizeTime = currentTime;
-            
-            // No penalty point found within range, fall back to normal localization
-            prtDebug("penalty point localize: no penalty point found within 5m, falling back to normal localization");
-            
-            // Set reasonable constraints for normal localization
-            xMin = -brain->config->fieldDimensions.length / 2;
-            xMax = brain->config->fieldDimensions.length / 2;
-            yMin = -brain->config->fieldDimensions.width / 2;
-            yMax = brain->config->fieldDimensions.width / 2;
-            thetaMin = -M_PI;
-            thetaMax = M_PI;
-        }
+        return NodeStatus::SUCCESS;
     }
 
 
