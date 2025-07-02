@@ -26,10 +26,33 @@ using namespace std;
 class BrainCommunication
 {
 public:
+    // 队友信息结构体
+    struct TeammateInfo {
+        uint32_t ip;
+        int playerId;
+        rclcpp::Time lastUpdate;
+        // 队友位置信息
+        float robotPoseX;
+        float robotPoseY;
+        float robotPoseTheta;
+        bool hasValidPose;
+        // 队友看到的球信息
+        bool ballDetected;
+        float ballPosX;
+        float ballPosY;
+        bool hasValidBallInfo;
+    };
+
     BrainCommunication(Brain *argBrain);
     ~BrainCommunication();
     
     void initUDPBroadcast();
+    
+    // 获取队友位置信息
+    std::vector<TeammateInfo> getTeammatePositions();
+    
+    // 获取队友球信息
+    std::vector<TeammateInfo> getTeammateBallInfo();
 
 private:
     Brain *brain;
@@ -68,11 +91,6 @@ private:
     int _discovery_recv_socket = -1;
 
 
-    struct TeammateInfo {
-        uint32_t ip;
-        int playerId;
-        rclcpp::Time lastUpdate;
-    };
     std::map<uint32_t, TeammateInfo> _teammate_addresses; // playerId -> TeammateInfo
     std::mutex _teammate_addresses_mutex;
     static constexpr int TEAMMATE_TIMEOUT_MS = 20 * 1000;   

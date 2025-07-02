@@ -10,7 +10,15 @@ struct TeamCommunicationMsg
     int communicationId;
     int teamId;
     int playerId;
-    // TODO: You need to add something you want to send to teammates
+    // Robot position information in field coordinate system
+    float robotPoseX;     // Robot X coordinate (field coordinate system)
+    float robotPoseY;     // Robot Y coordinate (field coordinate system)
+    float robotPoseTheta; // Robot orientation angle (field coordinate system)
+    // Ball information
+    bool ballDetected;    // Whether ball is detected
+    float ballPosX;       // Ball X coordinate (field coordinate system)
+    float ballPosY;       // Ball Y coordinate (field coordinate system)
+    // TODO: You can add more information you want to send to teammates
     int testInfo;
 };
 

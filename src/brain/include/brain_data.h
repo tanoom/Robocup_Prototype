@@ -35,12 +35,12 @@ public:
     GameObject ball;              // Records the ball's information, including position, bounding box, etc.
     double robotBallAngleToField; // The angle between the robot's vector to the ball and the X-axis in the field coordinate system, (-PI, PI]
 
-    // 起身
+    // Stand up
     RobotRecoveryState recoveryState = RobotRecoveryState::IS_READY;
-    bool isRecoveryAvailable = false; // 是否可以起身
+    bool isRecoveryAvailable = false; // Whether stand up is available
     int currentRobotModeIndex = -1;
-    bool recoveryPerformed = false; // 是否发送起身命令4
-    rclcpp::Time lastRecoveryTime; // 上次起身的时间
+    bool recoveryPerformed = false; // Whether stand up command has been sent
+    rclcpp::Time lastRecoveryTime; // Time of last stand up
     bool enterDampingPerformed = false;
     bool needManualRelocate = false;
 

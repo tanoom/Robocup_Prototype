@@ -42,6 +42,7 @@ void BrainTree::init()
     REGISTER_BUILDER(WaveHand)
     REGISTER_BUILDER(GoBackInField)
     REGISTER_BUILDER(TurnOnSpot)
+    REGISTER_BUILDER(GoToTeammateBall)
 
     // Action Nodes for debug
     REGISTER_BUILDER(PrintMsg)
@@ -77,13 +78,13 @@ void BrainTree::initEntry()
     setEntry<int>("control_state", 0);
     setEntry<bool>("B_pressed", false);
 
-    // fallRecovery相关
+    // fallRecovery related
     setEntry<bool>("should_recalibrate_after_fall_recovery", false);
 
     setEntry<bool>("we_just_scored", false);
     setEntry<bool>("wait_for_opponent_kickoff", false);
     
-    // 罚球点定位相关
+    // Penalty point localization related
     setEntry<bool>("trigger_penalty_point_localize", false);
 }
 
@@ -440,7 +441,7 @@ NodeStatus CheckAndStandUp::tick()
     }
     
     if (brain->data->recoveryState == RobotRecoveryState::HAS_FALLEN &&
-        // brain->data->isRecoveryAvailable && // 倒了就直接尝试RL起身，（不需要关注是否recoveryAailable）
+        // brain->data->isRecoveryAvailable && // If fallen, directly try RL stand up (no need to care about recoveryAvailable)
         brain->data->currentRobotModeIndex != 1 && // not in prepare
         !brain->data->recoveryPerformed &&
         !brain->data->enterDampingPerformed) {
@@ -450,7 +451,7 @@ NodeStatus CheckAndStandUp::tick()
         brain->log->log("recovery", rerun::TextLog("Fall detect and stand up"));
     }
 
-    // 如果没有起来, 且已经过了 5 秒, 就进入阻尼模式，且只进入一次
+    // If not stood up and 5 seconds have passed, enter damping mode, only once
     auto now = brain->get_clock()->now();
     auto seconds_elaps = now.seconds() - brain->data->lastRecoveryTime.seconds();
     if (brain->data->recoveryPerformed &&
@@ -475,7 +476,7 @@ NodeStatus CheckAndStandUp::tick()
         "recoveryState: " + to_string(static_cast<int>(brain->data->recoveryState))));
     }
 
-    // 机器人站着且是robocup步态，可以重置跌到爬起的状态
+    // Robot is standing and in robocup gait, can reset fall recovery state
     if (brain->data->recoveryState == RobotRecoveryState::IS_READY &&
         brain->data->currentRobotModeIndex == 8) { // in robocup gait
         brain->data->recoveryPerformed = false;
@@ -729,7 +730,7 @@ NodeStatus SelfLocate::tick()
     {
         int msec = static_cast<int>(brain->msecsSince(brain->data->lastSuccessfulLocalizeTime));
         double maxDriftSpeed = 0.1;                      // m/s
-        double maxDrift = msec / 1000.0 * maxDriftSpeed; // 在这个时间内, odom 最多漂移了多少距离
+        double maxDrift = msec / 1000.0 * maxDriftSpeed; // Maximum drift distance of odom in this time period
 
         xMin = -brain->config->fieldDimensions.length / 2 - 2;
         xMax = brain->config->fieldDimensions.length / 2 + 2;
@@ -740,7 +741,7 @@ NodeStatus SelfLocate::tick()
     }
     else if (mode == "penalty_point_localize")
     {
-        // 添加调用间隔限制，防止频繁调用导致定位到对面半场
+        // Add call interval limit to prevent frequent calls causing localization to opposite half field
         static rclcpp::Time lastPenaltyLocalizeTime = rclcpp::Time(0LL, RCL_CLOCK_UNINITIALIZED);
         auto currentTime = brain->get_clock()->now();
         
@@ -969,6 +970,67 @@ NodeStatus TurnOnSpot::onRunning()
     return NodeStatus::RUNNING;
 }
 
+
+NodeStatus GoToTeammateBall::tick()
+{
+    // 1. Check if we can't see the ball ourselves
+    if (brain->data->ballDetected) {
+        // If we can see the ball, no need to go to teammate's ball position
+        brain->log->logToScreen("GoToTeammateBall", "Can see ball myself, no need to go to teammate position", 0x00FF00FF);
+        return NodeStatus::FAILURE;
+    }
+    
+    // 2. Get teammate ball information
+    auto teammateBallInfo = brain->communication->getTeammateBallInfo();
+    
+    // 3. Find teammate who can see the ball
+    BrainCommunication::TeammateInfo selectedTeammate;
+    bool foundTeammateWithBall = false;
+    
+    for (const auto& teammate : teammateBallInfo) {
+        if (teammate.ballDetected) {
+            selectedTeammate = teammate;
+            foundTeammateWithBall = true;
+            break; // Select the first teammate who sees the ball
+        }
+    }
+    
+    // 4. If no teammate sees the ball, return failure
+    if (!foundTeammateWithBall) {
+        brain->log->logToScreen("GoToTeammateBall", "No teammate can see the ball", 0xFFFF00FF);
+        return NodeStatus::FAILURE;
+    }
+    
+    // 5. Get parameters
+    double longRangeThreshold, turnThreshold, vxLimit, vyLimit, vthetaLimit;
+    double xTolerance, yTolerance, thetaTolerance;
+    getInput("long_range_threshold", longRangeThreshold);
+    getInput("turn_threshold", turnThreshold);
+    getInput("vx_limit", vxLimit);
+    getInput("vy_limit", vyLimit);
+    getInput("vtheta_limit", vthetaLimit);
+    getInput("x_tolerance", xTolerance);
+    getInput("y_tolerance", yTolerance);
+    getInput("theta_tolerance", thetaTolerance);
+    
+    // 6. Get target position (ball position seen by teammate)
+    double ballX = selectedTeammate.ballPosX;
+    double ballY = selectedTeammate.ballPosY;
+    double targetTheta = brain->data->robotPoseToField.theta; // Keep current orientation
+    
+    // 7. Log information
+    brain->log->logToScreen("GoToTeammateBall", 
+        format("Going to ball position seen by teammate %d: (%.2f, %.2f)", 
+               selectedTeammate.playerId, ballX, ballY), 0x00FFFFFF);
+    
+    // 8. Use mature moveToPoseOnField method to go to target position
+    brain->client->moveToPoseOnField(ballX, ballY, targetTheta, 
+                                   longRangeThreshold, turnThreshold, 
+                                   vxLimit, vyLimit, vthetaLimit,
+                                   xTolerance, yTolerance, thetaTolerance);
+    
+    return NodeStatus::SUCCESS;
+}
 
 NodeStatus PrintMsg::tick()
 {

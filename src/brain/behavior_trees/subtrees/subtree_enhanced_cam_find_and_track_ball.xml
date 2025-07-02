@@ -1,0 +1,61 @@
+<root BTCPP_format="4" >
+  <include path="./subtree_cam_find_and_track_ball.xml" />
+  
+  <BehaviorTree ID="EnhancedCamFindAndTrackBall">
+     <Sequence name="root">
+         <IfThenElse>
+             <ScriptCondition name="Do we known the location of the ball?" code="ball_location_known" />
+             <Sequence name="[Yes] -> track the ball" >
+                <CamTrackBall />
+             </Sequence>
+             <Sequence name="[No] -> enhanced ball finding with teammate collaboration">
+                <!-- 增强版找球策略：30秒自己找球 + 队友协作 -->
+                <ReactiveSequence name="time_based_ball_search">
+                    <!-- 初始化查找开始时间 -->
+                    <RunOnce>
+                        <SetBlackboard output_key="ball_search_start_time" value="{current_time}" />
+                    </RunOnce>
+                    
+                    <!-- 策略1：30秒内优先使用原有的找球逻辑 -->
+                    <Fallback name="timed_ball_search">
+                        <!-- 如果在30秒内，继续使用原有找球逻辑 -->
+                        <Sequence name="original_ball_search_with_timeout">
+                            <ScriptCondition code="(current_time - ball_search_start_time) < 30.0" />
+                            <CamFindBall />
+                        </Sequence>
+                        
+                        <!-- 策略2：30秒后，尝试队友协作 -->
+                        <Sequence name="teammate_assisted_search_after_timeout">
+                            <!-- 尝试队友协作找球 -->
+                            <Fallback name="teammate_collaboration">
+                                <!-- 如果队友能看到球，去队友球的位置 -->
+                                <Sequence name="go_to_teammate_ball_position">
+                                    <GoToTeammateBall 
+                                        long_range_threshold="2.0"
+                                        turn_threshold="0.4"
+                                        vx_limit="0.8" 
+                                        vy_limit="0.5" 
+                                        vtheta_limit="1.2" 
+                                        x_tolerance="0.6"
+                                        y_tolerance="0.6"
+                                        theta_tolerance="0.3"
+                                    />
+                                    <!-- 到达队友球位置后，重置计时器并用相机重新找球 -->
+                                    <SetBlackboard output_key="ball_search_start_time" value="{current_time}" />
+                                    <CamFindBall />
+                                </Sequence>
+                                
+                                <!-- 如果队友协作失败，重置计时器继续使用原有找球策略 -->
+                                <Sequence name="reset_and_continue_original_search">
+                                    <SetBlackboard output_key="ball_search_start_time" value="{current_time}" />
+                                    <CamFindBall />
+                                </Sequence>
+                            </Fallback>
+                        </Sequence>
+                    </Fallback>
+                </ReactiveSequence>
+             </Sequence>
+         </IfThenElse>
+     </Sequence>
+  </BehaviorTree>
+</root> 

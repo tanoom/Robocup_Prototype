@@ -301,7 +301,7 @@ private:
     Brain *brain;
 };
 
-// 条件起身
+// Conditional stand up
 class CheckAndStandUp : public SyncActionNode
 {
 public:
@@ -317,7 +317,7 @@ private:
     Brain *brain;
 };
 
-// 起身后的转身定位
+// Rotation for relocation after standing up
 class RotateForRelocate : public StatefulActionNode
 {
 public:
@@ -326,8 +326,8 @@ public:
     static PortsList providedPorts()
     {
         return {
-            InputPort<double>("vyaw_limit", 1.0, "转向的速度上限"),
-            InputPort<int>("max_msec_locate", 5000, "最长重新定位时间"),
+            InputPort<double>("vyaw_limit", 1.0, "Upper limit of turning speed"),
+            InputPort<int>("max_msec_locate", 5000, "Maximum relocation time"),
         };
     }
 
@@ -398,7 +398,7 @@ public:
     static PortsList providedPorts()
     {
         return {
-            InputPort<double>("valve", 0.5, "回到场内距离边界多远可以停止"),
+            InputPort<double>("valve", 0.5, "How far from boundary to stop when returning to field"),
         };
     }
 
@@ -416,8 +416,8 @@ public:
     static PortsList providedPorts()
     {
         return {
-            InputPort<double>("rad", 0, "转多少弧度, 向左为正"),
-            InputPort<bool>("towards_ball", false, "为 true 时, 不考虑 rad 的正负号, 而是转向上一次看到不球的方向.")
+            InputPort<double>("rad", 0, "How many radians to turn, positive for left"),
+            InputPort<bool>("towards_ball", false, "When true, ignore rad sign and turn towards last seen ball direction")
         };
     }
 
@@ -428,11 +428,11 @@ public:
     void onHalted() override {};
 
 private:
-    double _lastAngle; // 上个 tick 的弧度
-    double _angle; // 转多少弧度
-    double _cumAngle; // 共转了多少弧度
-    double _msecLimit = 5000;  // 最多执行多少毫秒 (防止卡死)
-    rclcpp::Time _timeStart; // 进入节点的时间 
+    double _lastAngle; // Angle from previous tick
+    double _angle; // How many radians to turn
+    double _cumAngle; // Total angle turned
+    double _msecLimit = 5000;  // Maximum execution time in milliseconds (prevent deadlock)
+    rclcpp::Time _timeStart; // Time when entering the node 
     Brain *brain;
 };
 
@@ -455,6 +455,32 @@ public:
             InputPort<double>("stop_angle", 0.1, "The angle at which the robot will stop turning towards the ball"),
             InputPort<double>("vy_limit", 0.2, "Limit the velocity in the Y direction to prevent instability while walking"),
             InputPort<double>("vx_limit", 0.6, "Limit the velocity in the X direction to prevent instability while walking"),
+        };
+    }
+
+    NodeStatus tick() override;
+
+private:
+    Brain *brain;
+};
+
+// Go to the ball position seen by teammate
+class GoToTeammateBall : public SyncActionNode
+{
+public:
+    GoToTeammateBall(const string &name, const NodeConfig &config, Brain *_brain) : SyncActionNode(name, config), brain(_brain) {}
+
+    static PortsList providedPorts()
+    {
+        return {
+            InputPort<double>("long_range_threshold", 1.5, "When distance to target exceeds this value, prioritize moving towards it rather than fine-tuning position and orientation"),
+            InputPort<double>("turn_threshold", 0.4, "For long distances, if angle to target exceeds this threshold, turn towards target first"),
+            InputPort<double>("vx_limit", 0.6, "X direction velocity limit"),
+            InputPort<double>("vy_limit", 0.4, "Y direction velocity limit"),
+            InputPort<double>("vtheta_limit", 1.0, "Angular velocity limit"),
+            InputPort<double>("x_tolerance", 0.5, "X coordinate tolerance"),
+            InputPort<double>("y_tolerance", 0.5, "Y coordinate tolerance"),
+            InputPort<double>("theta_tolerance", 0.2, "Angle tolerance"),
         };
     }
 

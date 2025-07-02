@@ -1,5 +1,6 @@
 #include "brain.h"
 #include "brain_communication.h"
+#include <cmath>
 
 BrainCommunication::BrainCommunication(Brain *argBrain) : brain(argBrain)
 {
@@ -281,7 +282,15 @@ void BrainCommunication::spinDiscoveryReceiver() {
             _teammate_addresses[addr.sin_addr.s_addr] = {
                 addr.sin_addr.s_addr,
                 msg.playerId,
-                time_now
+                time_now,
+                0.0f,   // robotPoseX
+                0.0f,   // robotPoseY  
+                0.0f,   // robotPoseTheta
+                false,  // hasValidPose
+                false,  // ballDetected
+                0.0f,   // ballPosX
+                0.0f,   // ballPosY
+                false   // hasValidBallInfo
             };
         }
     }
@@ -332,7 +341,23 @@ void BrainCommunication::unicastCommunication() {
         msg.communicationId = _team_communication_msg_id++;
         msg.teamId = brain->config->teamId;
         msg.playerId = brain->config->playerId;
-        // TODO: add something you want to send to teammates, this is only an example
+        
+        // 填充机器人在场地坐标系中的位置信息
+        msg.robotPoseX = static_cast<float>(brain->data->robotPoseToField.x);
+        msg.robotPoseY = static_cast<float>(brain->data->robotPoseToField.y);
+        msg.robotPoseTheta = static_cast<float>(brain->data->robotPoseToField.theta);
+        
+        // 填充球的信息
+        msg.ballDetected = brain->data->ballDetected;
+        if (msg.ballDetected) {
+            msg.ballPosX = static_cast<float>(brain->data->ball.posToField.x);
+            msg.ballPosY = static_cast<float>(brain->data->ball.posToField.y);
+        } else {
+            msg.ballPosX = 0.0f;
+            msg.ballPosY = 0.0f;
+        }
+        
+        // TODO: add more information you want to send to teammates
         msg.testInfo = 1234567; 
 
         std::lock_guard<std::mutex> lock(_teammate_addresses_mutex);
@@ -428,8 +453,37 @@ void BrainCommunication::spinCommunicationReceiver() {
             continue;
         } 
 
-
-        // TODO: dealing with the received message
+        // 处理接收到的队友位置信息和球信息
+        {
+            std::lock_guard<std::mutex> lock(_teammate_addresses_mutex);
+            auto it = _teammate_addresses.find(addr.sin_addr.s_addr);
+            if (it != _teammate_addresses.end()) {
+                // 更新队友位置信息
+                it->second.robotPoseX = msg.robotPoseX;
+                it->second.robotPoseY = msg.robotPoseY;
+                it->second.robotPoseTheta = msg.robotPoseTheta;
+                it->second.hasValidPose = true;
+                
+                // 更新队友的球信息
+                it->second.ballDetected = msg.ballDetected;
+                it->second.ballPosX = msg.ballPosX;
+                it->second.ballPosY = msg.ballPosY;
+                it->second.hasValidBallInfo = true;
+                
+                it->second.lastUpdate = brain->get_clock()->now();
+                
+                cout << GREEN_CODE << format(
+                    "收到队友 %d 信息: 位置(%.2f, %.2f, %.2f°) 球(%s", 
+                    msg.playerId, msg.robotPoseX, msg.robotPoseY, 
+                    msg.robotPoseTheta * 180.0 / M_PI,
+                    msg.ballDetected ? "已发现" : "未发现");
+                
+                if (msg.ballDetected) {
+                    cout << format(" 球位置: %.2f, %.2f", msg.ballPosX, msg.ballPosY);
+                }
+                cout << ")" << RESET_CODE << endl;
+            }
+        }
     }
 }
 
@@ -444,4 +498,30 @@ void BrainCommunication::clearupCommunicationReceiver() {
     if (_communication_recv_thread.joinable()) {
         _communication_recv_thread.join();
     }
+}
+
+std::vector<BrainCommunication::TeammateInfo> BrainCommunication::getTeammatePositions() {
+    std::lock_guard<std::mutex> lock(_teammate_addresses_mutex);
+    std::vector<TeammateInfo> teammates;
+    
+    for (const auto& pair : _teammate_addresses) {
+        if (pair.second.hasValidPose) {
+            teammates.push_back(pair.second);
+        }
+    }
+    
+    return teammates;
+}
+
+std::vector<BrainCommunication::TeammateInfo> BrainCommunication::getTeammateBallInfo() {
+    std::lock_guard<std::mutex> lock(_teammate_addresses_mutex);
+    std::vector<TeammateInfo> teammates;
+    
+    for (const auto& pair : _teammate_addresses) {
+        if (pair.second.hasValidBallInfo) {
+            teammates.push_back(pair.second);
+        }
+    }
+    
+    return teammates;
 }
