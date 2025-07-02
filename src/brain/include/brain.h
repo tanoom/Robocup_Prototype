@@ -26,6 +26,7 @@
 #include "locator.h"
 #include "robot_client.h"
 #include "brain_communication.h"
+#include "voice_client.h"
 
 using namespace std;
 
@@ -43,6 +44,8 @@ public:
     std::shared_ptr<BrainData> data;
     // The RobotClient object, which contains all the operations on the robot.
     std::shared_ptr<RobotClient> client;
+    // The VoiceClient object, which contains all voice/speech operations.
+    std::shared_ptr<VoiceClient> voiceClient;
     // The locator object.
     std::shared_ptr<Locator> locator;
     // The BrainTree object, which contains the operations related to the BehaviorTree.

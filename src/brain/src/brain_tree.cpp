@@ -815,6 +815,13 @@ NodeStatus SelfLocate::tick()
             brain->tree->setEntry<bool>("odom_calibrated", true);
             brain->data->lastSuccessfulLocalizeTime = brain->get_clock()->now();
             
+            // Voice feedback for penalty point localization
+            if (isRightPenalty) {
+                brain->voiceClient->speak("relocate on right");
+            } else {
+                brain->voiceClient->speak("relocate on left");
+            }
+            
             brain->log->log("locator/penalty_point", rerun::TextLog("Succes Locate! use" + string(isRightPenalty ? "Right" : "Left") + "Penalty Point"));
             prtDebug("penalty point localize success: " + to_string(robotX) + " " + to_string(robotY) + " " + to_string(rad2deg(robotTheta)) + 
                      " penalty: " + (isRightPenalty ? "right" : "left"));
@@ -859,6 +866,7 @@ NodeStatus SelfLocate::tick()
     brain->tree->setEntry<bool>("odom_calibrated", true);
     brain->data->lastSuccessfulLocalizeTime = brain->get_clock()->now();
     prtDebug("locate success: " + to_string(res.pose.x) + " " + to_string(res.pose.y) + " " + to_string(rad2deg(res.pose.theta)) + " Dur: " + to_string(res.msecs));
+    brain->voiceClient->speak("locate");
 
     return NodeStatus::SUCCESS;
 }

@@ -45,6 +45,7 @@ void Brain::init()
     log = std::make_shared<BrainLog>(this);
     tree = std::make_shared<BrainTree>(this);
     client = std::make_shared<RobotClient>(this);
+    voiceClient = std::make_shared<VoiceClient>(this);
     communication = std::make_shared<BrainCommunication>(this);
 
     locator->init(config->fieldDimensions, 4, 0.5);
@@ -52,6 +53,8 @@ void Brain::init()
     tree->init();
 
     client->init();
+
+    voiceClient->init();
 
     log->prepare();
 
