@@ -1,7 +1,7 @@
 brain_node:
   ros__parameters:
     game:
-      team_id: 25 # consistant with GameControl
+      team_id: 29 # consistant with GameControl
       player_id: 0 # 0 | 1 | 2 | 3
       field_type: "adult_size" # adult_size | kid_size 
       player_role: "striker" # striker | goal_keeper
@@ -17,5 +17,5 @@ brain_node:
 
     rerunLog:
       enable: true
-      server_addr: "192.168.30.204:9876"
+      server_addr: "192.168.5.212:9876"
       img_interval: 1

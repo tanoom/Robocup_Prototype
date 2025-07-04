@@ -787,9 +787,17 @@ NodeStatus SelfLocate::tick()
             double rightPenaltyX = fd.length / 2 - fd.penaltyDist;
             double leftPenaltyX = -fd.length / 2 + fd.penaltyDist;
             
-            // Determine which penalty point we're seeing based on current robot position estimate
-            double currentX = brain->data->robotPoseToField.x;
-            bool isRightPenalty = (abs(currentX - rightPenaltyX) < abs(currentX - leftPenaltyX));
+            // Determine which penalty point we're seeing based on the observed penalty point position
+            // Use the robot's current orientation and penalty point relative position to determine which side
+            double currentTheta = brain->data->robotPoseToField.theta;
+            double observedX = penaltyMarker.x;
+            double observedY = penaltyMarker.y;
+            
+            // Transform the observed penalty point to field coordinates using rough position estimate
+            double roughFieldX = brain->data->robotPoseToField.x + (cos(currentTheta) * observedX - sin(currentTheta) * observedY);
+            
+            // Determine if it's right or left penalty point based on the rough field position
+            bool isRightPenalty = (roughFieldX > 0);
             
             // Get the actual penalty point position in field coordinates
             double penaltyFieldX = isRightPenalty ? rightPenaltyX : leftPenaltyX;
@@ -797,9 +805,6 @@ NodeStatus SelfLocate::tick()
             
             // Calculate robot position: penalty_field = robot_pose + R * penalty_robot
             // where R is rotation matrix and penalty_robot is the observed marker position
-            double observedX = penaltyMarker.x;
-            double observedY = penaltyMarker.y;
-            double currentTheta = brain->data->robotPoseToField.theta;
             double distance = sqrt(observedX * observedX + observedY * observedY);
             
             // Robot position = penalty_field - R * penalty_robot
