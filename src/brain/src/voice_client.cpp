@@ -7,9 +7,8 @@
 VoiceClient::VoiceClient(Brain *argBrain) : brain(argBrain)
 {
     // Set default voice parameters
-    voice_speed_ = 150;      // speech speed
-    voice_amplitude_ = 400;   // volume
-    voice_pitch_ = 45;       // pitch
+    voice_speed_ = 200;      // speech speed (WPM)
+    voice_amplitude_ = 500;   // volume
 }
 
 void VoiceClient::init()
@@ -133,15 +132,13 @@ int VoiceClient::speakValue(double value, const string& unit)
     return executeEspeak(text);
 }
 
-void VoiceClient::setVoiceParameters(int speed, int amplitude, int pitch)
+void VoiceClient::setVoiceParameters(int speed, int amplitude)
 {
-    voice_speed_ = max(80, min(500, speed));         // Limit to reasonable range
-    voice_amplitude_ = max(0, min(200, amplitude));   // Limit to reasonable range
-    voice_pitch_ = max(0, min(99, pitch));           // Limit to reasonable range
+    voice_speed_ = speed;         // Speech speed (WPM)
+    voice_amplitude_ = amplitude; // Volume
     
     prtDebug("Voice parameters updated: speed=" + to_string(voice_speed_) + 
-             ", amplitude=" + to_string(voice_amplitude_) + 
-             ", pitch=" + to_string(voice_pitch_));
+             ", amplitude=" + to_string(voice_amplitude_));
 }
 
 void VoiceClient::stopSpeaking()
@@ -153,6 +150,10 @@ void VoiceClient::stopSpeaking()
 
 int VoiceClient::executeEspeak(const string& text)
 {
+    // First, stop any existing espeak processes to avoid conflicts
+    prtDebug("正在清理现有espeak进程...");
+    system("killall espeak > /dev/null 2>&1");
+    
     stringstream command;
     command << "espeak ";
     
@@ -162,14 +163,18 @@ int VoiceClient::executeEspeak(const string& text)
     // Set parameters
     command << "-s " << voice_speed_ << " ";     // speed
     command << "-a " << voice_amplitude_ << " "; // volume
-    command << "-p " << voice_pitch_ << " ";     // pitch
     
     // Add text and background execution
     command << "\"" << text << "\" &";
     
     string cmd = command.str();
-    prtDebug("Executing: " + cmd);
+    prtDebug("准备执行命令: " + cmd);
+    
+    // 添加更详细的调试信息
+    prtDebug("当前参数: speed=" + to_string(voice_speed_) + ", amplitude=" + to_string(voice_amplitude_));
     
     int result = system(cmd.c_str());
+    prtDebug("命令执行结果: " + to_string(result));
+    
     return (result == 0) ? 0 : -1;
-} 
+}

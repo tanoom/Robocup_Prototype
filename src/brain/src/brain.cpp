@@ -327,16 +327,13 @@ void Brain::joystickCallback(const booster_interface::msg::RemoteControllerState
             prtDebug("B is released");
         }
         
-        // 添加 START 按键处理 - 触发罚球点定位
+        // 添加 START 按键处理 - 测试语音客户端
         if (joy.start)
         {
-            prtDebug("START 按键按下 - 开始执行罚球点定位");
-            bool success = executePenaltyPointLocalize();
-            if (success) {
-                prtDebug("罚球点定位成功!");
-            } else {
-                prtDebug("罚球点定位失败!");
-            }
+            prtDebug("START 按键按下 - 测试语音客户端");
+            // 让机器人说 "relocate"
+            voiceClient->speak("relocate");
+            prtDebug("语音客户端测试: 说出 'relocate'");
         }
     }
     else if (joy.lt && !joy.rt && !joy.lb && !joy.rb)

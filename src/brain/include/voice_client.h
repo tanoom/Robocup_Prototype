@@ -64,11 +64,10 @@ public:
 
     /**
      * @brief Set voice parameters
-     * @param speed Speech speed (80-500, default 150)
-     * @param amplitude Volume (0-200, default 80)
-     * @param pitch Pitch (0-99, default 45)
+     * @param speed Speech speed (WPM)
+     * @param amplitude Volume
      */
-    void setVoiceParameters(int speed = 150, int amplitude = 80, int pitch = 45);
+    void setVoiceParameters(int speed = 200, int amplitude = 500);
 
     /**
      * @brief Stop current speech playback
@@ -81,7 +80,6 @@ private:
     // Voice parameters
     int voice_speed_;
     int voice_amplitude_;
-    int voice_pitch_;
     
     // Predefined phrase mappings
     map<string, string> phrases_;
