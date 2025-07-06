@@ -753,7 +753,7 @@ NodeStatus SelfLocate::tick()
         auto elapsed = (currentTime - lastPenaltyLocalizeTime).seconds();
         
         if (elapsed < 3.0) { // 3秒内不允许重复调用
-            prtDebug("penalty_point_localize 调用过于频繁，距离上次调用仅 " + to_string(elapsed) + " 秒，需要等待 3 秒间隔");
+            //prtDebug("penalty_point_localize 调用过于频繁，距离上次调用仅 " + to_string(elapsed) + " 秒，需要等待 3 秒间隔");
             return NodeStatus::SUCCESS; // 直接返回成功，不执行定位
         }
         
@@ -770,14 +770,12 @@ NodeStatus SelfLocate::tick()
                     penaltyMarker = marker;
                     foundPenaltyPoint = true;
                     brain->log->log("locator/penalty_point", rerun::TextLog("penalty point marker is within 5 meters: (" + to_string(marker.x) + ", " + to_string(marker.y) + ")"));
+                    break;
                 }
             }
         }
         
         if (foundPenaltyPoint) {
-            // 更新最后调用时间
-            lastPenaltyLocalizeTime = currentTime;
-            
             // Calculate robot position based on the penalty point
             auto fd = brain->config->fieldDimensions;
             
@@ -787,32 +785,82 @@ NodeStatus SelfLocate::tick()
             double rightPenaltyX = fd.length / 2 - fd.penaltyDist;
             double leftPenaltyX = -fd.length / 2 + fd.penaltyDist;
             
-            // Determine which penalty point we're seeing based on the observed penalty point position
-            // Use the robot's current orientation and penalty point relative position to determine which side
             double currentTheta = brain->data->robotPoseToField.theta;
             double observedX = penaltyMarker.x;
             double observedY = penaltyMarker.y;
             
-            // Transform the observed penalty point to field coordinates using rough position estimate
-            double roughFieldX = brain->data->robotPoseToField.x + (cos(currentTheta) * observedX - sin(currentTheta) * observedY);
+            // First, determine which penalty point we're seeing
+            // Calculate where the penalty point would be on the field based on current robot pose
+            double currentRobotX = brain->data->robotPoseToField.x;
+            double currentRobotY = brain->data->robotPoseToField.y;
             
-            // Determine if it's right or left penalty point based on the rough field position
-            bool isRightPenalty = (roughFieldX > 0);
+            // Calculate observed penalty point position in field coordinates using current robot pose
+            double observedPenaltyFieldX = currentRobotX + (cos(currentTheta) * observedX - sin(currentTheta) * observedY);
+            double observedPenaltyFieldY = currentRobotY + (sin(currentTheta) * observedX + cos(currentTheta) * observedY);
             
-            // Get the actual penalty point position in field coordinates
+            // Calculate distances to actual penalty points
+            double distToRightPenalty = sqrt(pow(observedPenaltyFieldX - rightPenaltyX, 2) + 
+                                           pow(observedPenaltyFieldY - 0.0, 2));
+            double distToLeftPenalty = sqrt(pow(observedPenaltyFieldX - leftPenaltyX, 2) + 
+                                          pow(observedPenaltyFieldY - 0.0, 2));
+            
+            double maxAllowedDistance = 4.0; // Maximum allowed distance from actual penalty point (meters)
+            
+            bool rightPenaltyClose = distToRightPenalty <= maxAllowedDistance;
+            bool leftPenaltyClose = distToLeftPenalty <= maxAllowedDistance;
+            
+            brain->log->log("locator/penalty_point", rerun::TextLog("Observed penalty field pos: (" + 
+                                                                  to_string(observedPenaltyFieldX) + ", " + 
+                                                                  to_string(observedPenaltyFieldY) + ")"));
+            brain->log->log("locator/penalty_point", rerun::TextLog("Dist to right penalty: " + to_string(distToRightPenalty) + 
+                                                                  ", Dist to left penalty: " + to_string(distToLeftPenalty)));
+            
+            // Determine which penalty point this is based on proximity
+            bool isRightPenalty = false;
+            bool penaltyIdentified = false;
+            
+            if (rightPenaltyClose && leftPenaltyClose) {
+                // If both are close, choose the closer one
+                isRightPenalty = (distToRightPenalty < distToLeftPenalty);
+                penaltyIdentified = true;
+            } else if (rightPenaltyClose) {
+                isRightPenalty = true;
+                penaltyIdentified = true;
+            } else if (leftPenaltyClose) {
+                isRightPenalty = false;
+                penaltyIdentified = true;
+            }
+            
+            // If we can't identify which penalty point this is, reject
+            if (!penaltyIdentified) {
+                brain->log->log("locator/penalty_point", rerun::TextLog("Penalty point localization rejected: cannot identify which penalty point"));
+                prtDebug("penalty point localize rejected: observed penalty point too far from actual penalty points");
+                return NodeStatus::SUCCESS;
+            }
+            
+            // Now calculate robot position based on the identified penalty point
             double penaltyFieldX = isRightPenalty ? rightPenaltyX : leftPenaltyX;
             double penaltyFieldY = 0.0;
             
             // Calculate robot position: penalty_field = robot_pose + R * penalty_robot
             // where R is rotation matrix and penalty_robot is the observed marker position
-            double distance = sqrt(observedX * observedX + observedY * observedY);
-            
             // Robot position = penalty_field - R * penalty_robot
             double robotX = penaltyFieldX - (cos(currentTheta) * observedX - sin(currentTheta) * observedY);
             double robotY = penaltyFieldY - (sin(currentTheta) * observedX + cos(currentTheta) * observedY);
-            
-            // Use current theta with small adjustment tolerance
             double robotTheta = currentTheta;
+            
+            // Now apply out-of-field filter after calculation
+            bool positionValid = (robotX >= -fd.length/2 - 0.5 && robotX <= fd.length/2 + 0.5 &&
+                                 robotY >= -fd.width/2 - 0.5 && robotY <= fd.width/2 + 0.5);
+            
+            if (!positionValid) {
+                brain->log->log("locator/penalty_point", rerun::TextLog("Penalty point localization rejected: calculated position outside field bounds"));
+                prtDebug("penalty point localize rejected: calculated robot position (" + to_string(robotX) + ", " + to_string(robotY) + ") is outside field bounds");
+                return NodeStatus::SUCCESS;
+            }
+            
+            // Update last call time only if we're going to update the pose
+            lastPenaltyLocalizeTime = currentTime;
             
             brain->log->log("locator/penalty_point", rerun::TextLog("Robot Pose: (" + to_string(robotX) + ", " + to_string(robotY) + ", " + to_string(rad2deg(robotTheta)) + "°)"));
             
