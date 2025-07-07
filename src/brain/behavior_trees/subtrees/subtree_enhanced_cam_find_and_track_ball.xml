@@ -20,7 +20,7 @@
                     <Fallback name="timed_ball_search">
                         <!-- 如果在30秒内，继续使用原有找球逻辑 -->
                         <Sequence name="original_ball_search_with_timeout">
-                            <ScriptCondition code="(current_time - ball_search_start_time) < 30.0" />
+                            <ScriptCondition code="(current_time - ball_search_start_time) < 5.0" />
                             <CamFindBall />
                         </Sequence>
                         

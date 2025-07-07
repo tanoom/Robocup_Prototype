@@ -51,10 +51,11 @@ def handle_configuration(context, *args, **kwargs):
 
 
 def generate_launch_description():
+    #TODO: you have to change it back if you successfully test it
     return LaunchDescription([
         DeclareLaunchArgument(
             'tree', 
-            default_value='game.xml',
+            default_value='game_with_teammate_ball.xml',
             description='Specify behavior tree file name. DO NOT include full path, file should be in src/brain/config/behavior_trees'
         ),
         DeclareLaunchArgument(

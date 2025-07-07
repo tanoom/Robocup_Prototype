@@ -112,6 +112,9 @@ void Brain::tick()
 
 void Brain::updateMemory()
 {
+    // Update current time for behavior tree scripts
+    tree->setEntry<double>("current_time", get_clock()->now().seconds());
+    
     updateBallMemory();
 
     static Point ballPos;

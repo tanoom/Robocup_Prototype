@@ -86,6 +86,9 @@ void BrainTree::initEntry()
     
     // Penalty point localization related
     setEntry<bool>("trigger_penalty_point_localize", false);
+    
+    // Time related
+    setEntry<double>("current_time", 0.0);
 }
 
 void BrainTree::tick()
