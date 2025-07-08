@@ -990,7 +990,7 @@ NodeStatus TurnOnSpot::onRunning()
 }
 
 
-NodeStatus GoToTeammateBall::tick()
+NodeStatus GoToTeammateBall::onStart()
 {
     // 1. Check if we can't see the ball ourselves
     if (brain->data->ballDetected) {
@@ -1021,34 +1021,75 @@ NodeStatus GoToTeammateBall::tick()
     }
     
     // 5. Get parameters
-    double longRangeThreshold, turnThreshold, vxLimit, vyLimit, vthetaLimit;
-    double xTolerance, yTolerance, thetaTolerance;
-    getInput("long_range_threshold", longRangeThreshold);
-    getInput("turn_threshold", turnThreshold);
-    getInput("vx_limit", vxLimit);
-    getInput("vy_limit", vyLimit);
-    getInput("vtheta_limit", vthetaLimit);
-    getInput("x_tolerance", xTolerance);
-    getInput("y_tolerance", yTolerance);
-    getInput("theta_tolerance", thetaTolerance);
+    getInput("long_range_threshold", _longRangeThreshold);
+    getInput("turn_threshold", _turnThreshold);
+    getInput("vx_limit", _vxLimit);
+    getInput("vy_limit", _vyLimit);
+    getInput("vtheta_limit", _vthetaLimit);
+    getInput("x_tolerance", _xTolerance);
+    getInput("y_tolerance", _yTolerance);
+    getInput("theta_tolerance", _thetaTolerance);
     
-    // 6. Get target position (ball position seen by teammate)
-    double ballX = selectedTeammate.ballPosX;
-    double ballY = selectedTeammate.ballPosY;
-    double targetTheta = brain->data->robotPoseToField.theta; // Keep current orientation
+    // 6. Store target position (ball position seen by teammate)
+    _targetX = selectedTeammate.ballPosX;
+    _targetY = selectedTeammate.ballPosY;
+    _targetTheta = brain->data->robotPoseToField.theta; // Keep current orientation
+    _selectedTeammateId = selectedTeammate.playerId;
+    _hasValidTarget = true;
     
     // 7. Log information
     brain->log->logToScreen("GoToTeammateBall", 
-        format("Going to ball position seen by teammate %d: (%.2f, %.2f)", 
-               selectedTeammate.playerId, ballX, ballY), 0x00FFFFFF);
+        format("Starting to go to ball position seen by teammate %d: (%.2f, %.2f)", 
+               _selectedTeammateId, _targetX, _targetY), 0x00FFFFFF);
     
-    // 8. Use mature moveToPoseOnField method to go to target position
-    brain->client->moveToPoseOnField(ballX, ballY, targetTheta, 
-                                   longRangeThreshold, turnThreshold, 
-                                   vxLimit, vyLimit, vthetaLimit,
-                                   xTolerance, yTolerance, thetaTolerance);
+    return NodeStatus::RUNNING;
+}
+
+NodeStatus GoToTeammateBall::onRunning()
+{
+    // 1. Check if we found the ball ourselves during movement
+    if (brain->data->ballDetected) {
+        brain->log->logToScreen("GoToTeammateBall", "Found ball during movement, stopping", 0x00FF00FF);
+        brain->client->setVelocity(0, 0, 0);
+        return NodeStatus::SUCCESS;
+    }
     
-    return NodeStatus::SUCCESS;
+    // 2. Check if we don't have a valid target
+    if (!_hasValidTarget) {
+        brain->log->logToScreen("GoToTeammateBall", "No valid target", 0xFFFF00FF);
+        return NodeStatus::FAILURE;
+    }
+    
+    // 3. Check if we have reached the target position
+    double currentX = brain->data->robotPoseToField.x;
+    double currentY = brain->data->robotPoseToField.y;
+    double currentTheta = brain->data->robotPoseToField.theta;
+    
+    bool reachedX = fabs(currentX - _targetX) < _xTolerance;
+    bool reachedY = fabs(currentY - _targetY) < _yTolerance;
+    bool reachedTheta = fabs(toPInPI(currentTheta - _targetTheta)) < _thetaTolerance;
+    
+    if (reachedX && reachedY && reachedTheta) {
+        brain->log->logToScreen("GoToTeammateBall", 
+            format("Reached teammate ball position (%.2f, %.2f)", _targetX, _targetY), 0x00FF00FF);
+        brain->client->setVelocity(0, 0, 0);
+        return NodeStatus::SUCCESS;
+    }
+    
+    // 4. Continue moving towards target position
+    brain->client->moveToPoseOnField(_targetX, _targetY, _targetTheta, 
+                                   _longRangeThreshold, _turnThreshold, 
+                                   _vxLimit, _vyLimit, _vthetaLimit,
+                                   _xTolerance, _yTolerance, _thetaTolerance);
+    
+    return NodeStatus::RUNNING;
+}
+
+void GoToTeammateBall::onHalted()
+{
+    brain->client->setVelocity(0, 0, 0);
+    _hasValidTarget = false;
+    brain->log->logToScreen("GoToTeammateBall", "Movement halted", 0xFFFF00FF);
 }
 
 NodeStatus PrintMsg::tick()

@@ -465,10 +465,10 @@ private:
 };
 
 // Go to the ball position seen by teammate
-class GoToTeammateBall : public SyncActionNode
+class GoToTeammateBall : public StatefulActionNode
 {
 public:
-    GoToTeammateBall(const string &name, const NodeConfig &config, Brain *_brain) : SyncActionNode(name, config), brain(_brain) {}
+    GoToTeammateBall(const string &name, const NodeConfig &config, Brain *_brain) : StatefulActionNode(name, config), brain(_brain) {}
 
     static PortsList providedPorts()
     {
@@ -484,10 +484,19 @@ public:
         };
     }
 
-    NodeStatus tick() override;
+    NodeStatus onStart() override;
+    
+    NodeStatus onRunning() override;
+    
+    void onHalted() override;
 
 private:
     Brain *brain;
+    double _targetX, _targetY, _targetTheta;
+    double _longRangeThreshold, _turnThreshold, _vxLimit, _vyLimit, _vthetaLimit;
+    double _xTolerance, _yTolerance, _thetaTolerance;
+    int _selectedTeammateId;
+    bool _hasValidTarget;
 };
 
 // ------------------------------- FOR DEBUG -------------------------------
