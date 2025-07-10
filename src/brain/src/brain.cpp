@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <limits>
+#include <cmath>
 
 #include "brain.h"
 #include "utils/print.h"
@@ -124,7 +125,6 @@ void Brain::updateCollaboration() {
             prtDebug(format("协作更新: 球未检测到，跳过协作逻辑 (role: %s)", config->collaborationRole.c_str()));
         }
         no_ball_counter++;
-        return;
     }
     
     // Calculate our cost to reach the ball
@@ -147,20 +147,60 @@ void Brain::updateCollaboration() {
 }
 
 void Brain::calculateBallCost() {
-    if (!data->ballDetected) {
+    Point2D ballPos;
+    bool ballPosFound = false;
+    
+    // 首先检查自己是否看到球
+    if (data->ballDetected) {
+        ballPos.x = data->ball.posToField.x;
+        ballPos.y = data->ball.posToField.y;
+        ballPosFound = true;
+        prtDebug("使用自己检测到的球位置计算成本");
+    } else {
+        // 自己没看到球，尝试使用队友的球信息
+        auto teammatesBallInfo = communication->getTeammateBallInfo();
+        
+        if (!teammatesBallInfo.empty()) {
+            // 找到距离自己最近的球位置
+            double minDistance = std::numeric_limits<double>::infinity();
+            Point2D closestBallPos;
+            int closestTeammateId = -1;
+            
+            for (const auto& teammate : teammatesBallInfo) {
+                if (teammate.ballDetected) {
+                    // 计算球到自己的距离
+                    double distance = std::sqrt(
+                        std::pow(teammate.ballPosX - data->robotPoseToField.x, 2) + 
+                        std::pow(teammate.ballPosY - data->robotPoseToField.y, 2)
+                    );
+                    
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        closestBallPos.x = teammate.ballPosX;
+                        closestBallPos.y = teammate.ballPosY;
+                        closestTeammateId = teammate.playerId;
+                        ballPosFound = true;
+                    }
+                }
+            }
+            
+            if (ballPosFound) {
+                ballPos = closestBallPos;
+                prtDebug(format("使用队友 %d 检测到的球位置计算成本 (距离: %.2fm)", 
+                    closestTeammateId, minDistance));
+            }
+        }
+    }
+    
+    // 如果所有人都没看到球，返回无穷
+    if (!ballPosFound) {
         data->ballCost = std::numeric_limits<double>::infinity();
+        prtDebug("所有机器人都没检测到球，成本设为无穷");
         return;
     }
     
-    // Convert ball position to Point2D format for strategy calculation
-    Point2D ballPos;
-    ballPos.x = data->ball.posToField.x;
-    ballPos.y = data->ball.posToField.y;
-    
-    // Use current robot pose
+    // 使用选定的球位置计算成本
     Pose2D robotPose = data->robotPoseToField;
-    
-    // Calculate cost using strategy module
     data->ballCost = strategy->calculateCostFunction(robotPose, ballPos);
     data->lastCostCalculation = get_clock()->now();
 }
@@ -193,14 +233,23 @@ void Brain::processMasterDecision() {
         }
     }
     
-    // Update possession assignment
-    int oldPossessionId = data->possessionPlayerId;
-    data->possessionPlayerId = bestRobotId;
-    data->hasBallPossession = (bestRobotId == config->playerId);
-    
-    // Log decision
-    prtDebug(format("Master决策: 机器人 %d 应该占据球 (cost=%.2f), 之前分配给: %d", 
-        bestRobotId, minCost, oldPossessionId));
+    // Check if all costs are infinite (no one can see the ball)
+    if (std::isinf(minCost)) {
+        // No one can see the ball, no possession assignment
+        int oldPossessionId = data->possessionPlayerId;
+        data->possessionPlayerId = -1;
+        data->hasBallPossession = false;
+        prtDebug(format("Master决策: 所有机器人成本都是无穷，清除球权分配 (之前分配给: %d)", oldPossessionId));
+    } else {
+        // Update possession assignment
+        int oldPossessionId = data->possessionPlayerId;
+        data->possessionPlayerId = bestRobotId;
+        data->hasBallPossession = (bestRobotId == config->playerId);
+        
+        // Log decision
+        prtDebug(format("Master决策: 机器人 %d 应该占据球 (cost=%.2f), 之前分配给: %d", 
+            bestRobotId, minCost, oldPossessionId));
+    }
 }
 
 void Brain::processSlaveUpdates() {

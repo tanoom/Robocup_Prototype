@@ -63,9 +63,26 @@ class RobotConfigManager:
             print("✗ Current robot configuration not found")
             return None
         
-        robot_config = self.config_data.get('robots', {}).get(current_robot)
-        if not robot_config:
-            print(f"✗ Robot configuration not found: {current_robot}")
+        # Get robot profile file path
+        robot_profiles = self.config_data.get('robot_profiles', {})
+        robot_profile_path = robot_profiles.get(current_robot)
+        if not robot_profile_path:
+            print(f"✗ Robot profile path not found: {current_robot}")
+            return None
+        
+        # Load robot configuration from separate file
+        robot_config_file = self.project_root / robot_profile_path
+        try:
+            with open(robot_config_file, 'r', encoding='utf-8') as f:
+                robot_config = yaml.safe_load(f)
+            if not robot_config:
+                print(f"✗ Robot configuration file is empty: {robot_config_file}")
+                return None
+        except FileNotFoundError:
+            print(f"✗ Robot configuration file not found: {robot_config_file}")
+            return None
+        except yaml.YAMLError as e:
+            print(f"✗ Robot configuration file format error: {e}")
             return None
         
         return current_robot, robot_config
@@ -190,54 +207,111 @@ class RobotConfigManager:
         
         print(f"  ✓ Updated FastDDS configuration: {len(network_config['interfaces'])} network interfaces")
     
-    def update_vision_config(self, vision_config=None):
-        """Update Vision configuration with strict formatting"""
+    def update_vision_config(self, robot_config=None):
+        """Update Vision configuration with robot-specific or template configuration"""
         vision_path = self.config_paths['vision']
         
         # Backup original file
         self.backup_file(vision_path)
         
-        # Build vision.yaml content with strict formatting as per user requirements
-        vision_content = """show_res: false
-camera:
-  type: "realsense" # realsense or zed
-  intrin:
-    fx: 643.898
-    fy: 643.216
-    cx: 649.038
-    cy: 357.21
-    distortion_coeffs: [-0.0553056,0.065975,-0.000994232,2.98548e-05,-0.0216579]
-    distortion_model: 2 # 0: none, 1: opencv format, 2: for rs d455 only
-  extrin:
-    - [ 0.05659255, 0.03014561, 0.99794215, 0.04217854]
-    - [-0.99839673, 0.00283376, 0.05653273, 0.01405556]
-    - [-0.00112372,-0.9995415 , 0.03025765,-0.01538294]
-    - [ 0.        , 0.        , 0.        , 1.        ]
-  pitch_compensation: 0.0 # in degree
-  yaw_compensation: 0.0
-  z_compensation: 0.0
-detection_model:
-  model_path: "./src/vision/model/best_orin.engine"
-  confidence_threshold: 0.2
-use_depth: true
-ball_pose_estimator:
-  use_depth: false
-  radius: 1.109
-  down_sample_leaf_size: 0.01
-  cluster_distance_threshold: 0.01
-  fitting_distance_threshold: 0.01
-human_like_pose_estimator:
-  use_depth: false
-  down_sample_leaf_size: 0.01
-  fitting_distance_threshold: 0.01
-  statistic_outlier_multiplier: 0.01
-"""
+        # Check if robot has specific vision config
+        vision_config = None
+        if robot_config and 'vision' in robot_config:
+            vision_config = robot_config['vision']
+            print(f"  ✓ Using robot-specific vision configuration")
+        else:
+            # Load vision template
+            vision_template_path = self.config_data.get('vision_template')
+            if vision_template_path:
+                template_file = self.project_root / vision_template_path
+                try:
+                    with open(template_file, 'r', encoding='utf-8') as f:
+                        vision_config = yaml.safe_load(f)
+                    print(f"  ✓ Using vision template configuration")
+                except (FileNotFoundError, yaml.YAMLError) as e:
+                    print(f"  ✗ Failed to load vision template: {e}")
+                    return
         
-        # Write new configuration
-        with open(vision_path, 'w', encoding='utf-8') as f:
-            f.write(vision_content)
+        if not vision_config:
+            print(f"  ✗ No vision configuration available")
+            return
+        
+        # Write new configuration with strict ordering
+        self._write_vision_config(vision_path, vision_config)
         
         print(f"  ✓ Updated Vision configuration")
+    
+    def _write_vision_config(self, file_path, vision_config):
+        """Write vision configuration with strict field ordering"""
+        with open(file_path, 'w', encoding='utf-8') as f:
+            # Write fields in the specified order
+            if 'show_res' in vision_config:
+                f.write(f"show_res: {str(vision_config['show_res']).lower()}\n")
+            
+            if 'camera' in vision_config:
+                f.write("camera:\n")
+                camera = vision_config['camera']
+                
+                if 'type' in camera:
+                    f.write(f"  type: {camera['type']}\n")
+                
+                if 'intrin' in camera:
+                    f.write("  intrin:\n")
+                    intrin = camera['intrin']
+                    for key in ['fx', 'fy', 'cx', 'cy', 'distortion_model']:
+                        if key in intrin:
+                            f.write(f"    {key}: {intrin[key]}\n")
+                    if 'distortion_coeffs' in intrin:
+                        f.write("    distortion_coeffs:\n")
+                        for coeff in intrin['distortion_coeffs']:
+                            f.write(f"    - {coeff}\n")
+                
+                if 'extrin' in camera:
+                    f.write("  extrin:\n")
+                    for row in camera['extrin']:
+                        f.write("  -\n")
+                        for val in row:
+                            f.write(f"    - {val}\n")
+                
+                for key in ['pitch_compensation', 'yaw_compensation', 'z_compensation']:
+                    if key in camera:
+                        f.write(f"  {key}: {camera[key]}\n")
+            
+            if 'detection_model' in vision_config:
+                f.write("detection_model:\n")
+                detection = vision_config['detection_model']
+                if 'model_path' in detection:
+                    f.write(f"  model_path: {detection['model_path']}\n")
+                if 'confidence_threshold' in detection:
+                    f.write(f"  confidence_threshold: {detection['confidence_threshold']}\n")
+            
+            if 'use_depth' in vision_config:
+                f.write(f"use_depth: {str(vision_config['use_depth']).lower()}\n")
+            
+            if 'ball_pose_estimator' in vision_config:
+                f.write("ball_pose_estimator:\n")
+                ball = vision_config['ball_pose_estimator']
+                for key in ['use_depth', 'radius', 'down_sample_leaf_size', 'cluster_distance_threshold', 'fitting_distance_threshold']:
+                    if key in ball:
+                        f.write(f"  {key}: {ball[key]}\n")
+            
+            if 'human_like_pose_estimator' in vision_config:
+                f.write("human_like_pose_estimator:\n")
+                human = vision_config['human_like_pose_estimator']
+                for key in ['use_depth', 'down_sample_leaf_size', 'fitting_distance_threshold', 'statistic_outlier_multiplier']:
+                    if key in human:
+                        f.write(f"  {key}: {human[key]}\n")
+            
+            if 'calibration' in vision_config:
+                f.write("calibration:\n")
+                calibration = vision_config['calibration']
+                if 'handeye' in calibration:
+                    f.write("  handeye:\n")
+                    handeye = calibration['handeye']
+                    if 'calibration_time' in handeye:
+                        f.write(f"    calibration_time: {handeye['calibration_time']}\n")
+                    if 'reprojection_error' in handeye:
+                        f.write(f"    reprojection_error: {handeye['reprojection_error']}\n")
     
     def apply_configuration(self, robot_name=None):
         """Apply configuration"""
@@ -246,7 +320,8 @@ human_like_pose_estimator:
         
         if robot_name:
             # If robot name is specified, update current_robot first
-            if robot_name in self.config_data.get('robots', {}):
+            robot_profiles = self.config_data.get('robot_profiles', {})
+            if robot_name in robot_profiles:
                 self.config_data['current_robot'] = robot_name
                 with open(self.profiles_file, 'w', encoding='utf-8') as f:
                     yaml.dump(self.config_data, f, default_flow_style=False, allow_unicode=True, indent=2)
@@ -271,7 +346,7 @@ human_like_pose_estimator:
             self.update_sftp_config(robot_config['sftp'])
             self.update_brain_config(robot_config['brain'])
             self.update_fastdds_config(robot_config['network'])
-            self.update_vision_config()
+            self.update_vision_config(robot_config)
             
             print(f"\n🎉 Configuration update completed!")
             print(f"   Current robot: {robot_config['name']}")
@@ -293,12 +368,24 @@ human_like_pose_estimator:
             return
         
         current_robot = self.config_data.get('current_robot')
-        robots = self.config_data.get('robots', {})
+        robot_profiles = self.config_data.get('robot_profiles', {})
         
         print("🤖 Available robot configurations:")
-        for robot_id, robot_config in robots.items():
+        for robot_id, robot_profile_path in robot_profiles.items():
             status = "✓ Current" if robot_id == current_robot else "  "
-            print(f"{status} {robot_id}: {robot_config.get('name', 'N/A')} - {robot_config.get('description', 'N/A')}")
+            
+            # Load robot configuration from separate file to get name and description
+            robot_config_file = self.project_root / robot_profile_path
+            try:
+                with open(robot_config_file, 'r', encoding='utf-8') as f:
+                    robot_config = yaml.safe_load(f)
+                name = robot_config.get('name', 'N/A')
+                description = robot_config.get('description', 'N/A')
+            except (FileNotFoundError, yaml.YAMLError):
+                name = 'N/A'
+                description = 'Configuration file error'
+            
+            print(f"{status} {robot_id}: {name} - {description}")
 
 def main():
     """Main function"""

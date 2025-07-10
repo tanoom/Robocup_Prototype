@@ -1,33 +1,58 @@
 show_res: false
 camera:
-  type: "realsense" # realsense or zed
+  type: realsense
   intrin:
-    fx: 643.898
-    fy: 643.216
-    cx: 649.038
-    cy: 357.21
-    distortion_coeffs: [-0.0553056,0.065975,-0.000994232,2.98548e-05,-0.0216579]
-    distortion_model: 2 # 0: none, 1: opencv format, 2: for rs d455 only
+    fx: 647.840088
+    fy: 646.649902
+    cx: 637.256348
+    cy: 362.757812
+    distortion_model: 1
+    distortion_coeffs:
+    - -0.0549737737
+    - 0.0632856414
+    - 0.000689056003
+    - 0.000954764138
+    - -0.0202241838
   extrin:
-    - [ 0.05659255, 0.03014561, 0.99794215, 0.04217854]
-    - [-0.99839673, 0.00283376, 0.05653273, 0.01405556]
-    - [-0.00112372,-0.9995415 , 0.03025765,-0.01538294]
-    - [ 0.        , 0.        , 0.        , 1.        ]
-  pitch_compensation: 0.0 # in degree
-  yaw_compensation: 0.0
-  z_compensation: 0.0
+  -
+    - -0.00934416708
+    - 0.0111993654
+    - 0.999893665
+    - 0.012255922
+  -
+    - -0.999950588
+    - -0.00351710408
+    - -0.00930530485
+    - -0.0216439683
+  -
+    - 0.00341251632
+    - -0.999931097
+    - 0.0112316767
+    - 0.0116512068
+  -
+    - 0
+    - 0
+    - 0
+    - 1
+  pitch_compensation: 0
+  yaw_compensation: 0
+  z_compensation: 0
 detection_model:
-  model_path: "./src/vision/model/best_orin.engine"
+  model_path: ./src/vision/model/best_orin.engine
   confidence_threshold: 0.2
 use_depth: true
 ball_pose_estimator:
-  use_depth: false
+  use_depth: False
   radius: 1.109
   down_sample_leaf_size: 0.01
   cluster_distance_threshold: 0.01
   fitting_distance_threshold: 0.01
 human_like_pose_estimator:
-  use_depth: false
+  use_depth: False
   down_sample_leaf_size: 0.01
   fitting_distance_threshold: 0.01
   statistic_outlier_multiplier: 0.01
+calibration:
+  handeye:
+    calibration_time: 2025-07-10-18-11-48
+    reprojection_error: 5.373600619545623
