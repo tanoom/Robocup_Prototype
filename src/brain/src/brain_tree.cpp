@@ -45,6 +45,11 @@ void BrainTree::init()
     REGISTER_BUILDER(NewKick)
     REGISTER_BUILDER(GoToTeammateBall)
 
+    // GoalKeeper Nodes
+    REGISTER_BUILDER(GoalKeeperPosition)
+    REGISTER_BUILDER(GoalKeeperIntercept)
+    REGISTER_BUILDER(GoalKeeperTrackAndAdjust)
+
     // Action Nodes for debug
     REGISTER_BUILDER(PrintMsg)
 
@@ -90,6 +95,12 @@ void BrainTree::initEntry()
     
     // Time related
     setEntry<double>("current_time", 0.0);
+    
+    // Collaboration related
+    setEntry<bool>("has_ball_possession", false);
+    setEntry<int>("possession_player_id", -1);
+    setEntry<double>("ball_cost", 0.0);
+    setEntry<bool>("is_master_robot", false);
 }
 
 void BrainTree::tick()
@@ -1126,4 +1137,238 @@ NodeStatus PrintMsg::tick()
     }
     std::cout << "[MSG] " << msg.value() << std::endl;
     return NodeStatus::SUCCESS;
+}
+
+// ------------------------------- GOALKEEPER NODES -------------------------------
+
+NodeStatus GoalKeeperPosition::onStart()
+{
+    // Get all input parameters
+    getInput("base_x", _baseX);
+    getInput("base_y", _baseY);
+    getInput("base_theta", _baseTheta);
+    getInput("y_adjustment_factor", _yAdjustmentFactor);
+    getInput("max_y_offset", _maxYOffset);
+    getInput("vx_limit", _vxLimit);
+    getInput("vy_limit", _vyLimit);
+    getInput("vtheta_limit", _vthetaLimit);
+    getInput("position_tolerance", _positionTolerance);
+    getInput("angle_tolerance", _angleTolerance);
+
+    brain->log->logToScreen("GoalKeeperPosition", "Starting goalkeeper positioning", 0x00FFFFFF);
+    
+    return NodeStatus::RUNNING;
+}
+
+NodeStatus GoalKeeperPosition::onRunning()
+{
+    // Recalculate target position every tick to respond to ball movement
+    _targetX = _baseX;
+    _targetY = _baseY;
+    _targetTheta = _baseTheta;
+
+    // Adjust Y position based on ball position (if ball is detected)
+    if (brain->tree->getEntry<bool>("ball_location_known")) {
+        double ballY = brain->data->ball.posToField.y;
+        double yAdjustment = ballY * _yAdjustmentFactor;
+        
+        // Cap the adjustment to maximum offset
+        yAdjustment = cap(yAdjustment, _maxYOffset, -_maxYOffset);
+        _targetY = _baseY + yAdjustment;
+        
+        brain->log->logToScreen("GoalKeeperPosition", 
+            format("Ball Y: %.2f, Target Y: %.2f", ballY, _targetY), 0x00FFFFFF);
+    }
+
+    // Check if we've reached the target position
+    double currentX = brain->data->robotPoseToField.x;
+    double currentY = brain->data->robotPoseToField.y;
+    double currentTheta = brain->data->robotPoseToField.theta;
+    
+    bool reachedX = fabs(currentX - _targetX) < _positionTolerance;
+    bool reachedY = fabs(currentY - _targetY) < _positionTolerance;
+    bool reachedTheta = fabs(toPInPI(currentTheta - _targetTheta)) < _angleTolerance;
+    
+    if (reachedX && reachedY && reachedTheta) {
+        brain->client->setVelocity(0, 0, 0);  // Stop movement
+        brain->log->logToScreen("GoalKeeperPosition", 
+            format("Reached target position (%.2f, %.2f, %.2f)", _targetX, _targetY, _targetTheta), 0x00FF00FF);
+        return NodeStatus::SUCCESS;
+    }
+
+    // Continue moving towards target position
+    brain->client->moveToPoseOnField(_targetX, _targetY, _targetTheta, 
+                                   2.0, 0.4, // long_range_threshold, turn_threshold
+                                   _vxLimit, _vyLimit, _vthetaLimit,
+                                   _positionTolerance, _positionTolerance, _angleTolerance);
+    
+    return NodeStatus::RUNNING;
+}
+
+void GoalKeeperPosition::onHalted()
+{
+    brain->client->setVelocity(0, 0, 0);  // Stop movement when halted
+    brain->log->logToScreen("GoalKeeperPosition", "Goalkeeper positioning halted", 0xFFFF00FF);
+}
+
+NodeStatus GoalKeeperIntercept::onStart()
+{
+    double interceptDistance, predictionTime;
+    getInput("intercept_distance", interceptDistance);
+    getInput("prediction_time", predictionTime);
+    
+    _startTime = brain->get_clock()->now();
+    _hasValidIntercept = false;
+
+    // Check if ball is close enough to intercept
+    if (!brain->tree->getEntry<bool>("ball_location_known")) {
+        brain->log->logToScreen("GoalKeeperIntercept", "Ball not detected, can't intercept", 0xFFFF00FF);
+        return NodeStatus::FAILURE;
+    }
+
+    double ballRange = brain->data->ball.range;
+    if (ballRange > interceptDistance) {
+        brain->log->logToScreen("GoalKeeperIntercept", 
+            format("Ball too far: %.2f > %.2f", ballRange, interceptDistance), 0xFFFF00FF);
+        return NodeStatus::FAILURE;
+    }
+
+    // Calculate intercept position
+    double ballX = brain->data->ball.posToField.x;
+    double ballY = brain->data->ball.posToField.y;
+    
+    // Simple prediction: assume ball continues in current direction
+    // For now, just intercept at current ball position
+    _interceptX = ballX;
+    _interceptY = ballY;
+    _hasValidIntercept = true;
+
+    brain->log->logToScreen("GoalKeeperIntercept", 
+        format("Starting intercept at (%.2f, %.2f)", _interceptX, _interceptY), 0x00FF00FF);
+    
+    return NodeStatus::RUNNING;
+}
+
+NodeStatus GoalKeeperIntercept::onRunning()
+{
+    if (!_hasValidIntercept) {
+        return NodeStatus::FAILURE;
+    }
+
+    double vxLimit, vyLimit, vthetaLimit;
+    getInput("vx_limit", vxLimit);
+    getInput("vy_limit", vyLimit);
+    getInput("vtheta_limit", vthetaLimit);
+
+    // Check if we've reached the intercept position
+    double currentX = brain->data->robotPoseToField.x;
+    double currentY = brain->data->robotPoseToField.y;
+    
+    double distanceToIntercept = sqrt(pow(currentX - _interceptX, 2) + pow(currentY - _interceptY, 2));
+    
+    if (distanceToIntercept < 0.3) { // Within 30cm of intercept point
+        brain->client->setVelocity(0, 0, 0);
+        brain->log->logToScreen("GoalKeeperIntercept", "Reached intercept position", 0x00FF00FF);
+        return NodeStatus::SUCCESS;
+    }
+
+    // Check timeout (5 seconds max)
+    if (brain->msecsSince(_startTime) > 5000) {
+        brain->client->setVelocity(0, 0, 0);
+        brain->log->logToScreen("GoalKeeperIntercept", "Intercept timeout", 0xFFFF00FF);
+        return NodeStatus::FAILURE;
+    }
+
+    // Move towards intercept position
+    brain->client->moveToPoseOnField(_interceptX, _interceptY, 1.57, // keep 90-degree orientation
+                                   2.0, 0.4, // long_range_threshold, turn_threshold
+                                   vxLimit, vyLimit, vthetaLimit,
+                                   0.3, 0.3, 0.2); // tolerances
+    
+    return NodeStatus::RUNNING;
+}
+
+void GoalKeeperIntercept::onHalted()
+{
+    brain->client->setVelocity(0, 0, 0);
+    _hasValidIntercept = false;
+    brain->log->logToScreen("GoalKeeperIntercept", "Intercept halted", 0xFFFF00FF);
+}
+
+NodeStatus GoalKeeperTrackAndAdjust::onStart()
+{
+    getInput("base_x", _baseX);
+    getInput("adjustment_speed", _adjustmentSpeed);
+    getInput("ball_y_factor", _ballYFactor);
+    getInput("max_adjustment", _maxAdjustment);
+    getInput("vx_limit", _vxLimit);
+    getInput("vy_limit", _vyLimit);
+    getInput("vtheta_limit", _vthetaLimit);
+    getInput("position_tolerance", _positionTolerance);
+
+    brain->log->logToScreen("GoalKeeperTrackAndAdjust", "Starting goalkeeper tracking and adjustment", 0x00FFFFFF);
+    
+    return NodeStatus::RUNNING;
+}
+
+NodeStatus GoalKeeperTrackAndAdjust::onRunning()
+{
+    // Default position
+    double targetX = _baseX;
+    double targetY = 0.0;
+    double targetTheta = 1.57; // 90 degrees
+
+    // Adjust position based on ball
+    if (brain->tree->getEntry<bool>("ball_location_known")) {
+        double ballX = brain->data->ball.posToField.x;
+        double ballY = brain->data->ball.posToField.y;
+        double ballRange = brain->data->ball.range;
+        
+        // Adjust Y position based on ball Y position
+        double yAdjustment = ballY * _ballYFactor;
+        yAdjustment = cap(yAdjustment, _maxAdjustment, -_maxAdjustment);
+        targetY = yAdjustment;
+        
+        // Slightly adjust X position if ball is very close
+        if (ballRange < 2.0) {
+            targetX = _baseX + 0.1; // Move slightly forward
+        }
+        
+        brain->log->logToScreen("GoalKeeperTrackAndAdjust", 
+            format("Ball (%.2f, %.2f), Target (%.2f, %.2f)", ballX, ballY, targetX, targetY), 0x00FFFFFF);
+    }
+
+    // Get current position
+    double currentX = brain->data->robotPoseToField.x;
+    double currentY = brain->data->robotPoseToField.y;
+    double currentTheta = brain->data->robotPoseToField.theta;
+    
+    // Check if we're close enough to target (for continuous adjustment, we use a smaller tolerance)
+    bool closeToTarget = (fabs(currentX - targetX) < _positionTolerance) && 
+                        (fabs(currentY - targetY) < _positionTolerance) && 
+                        (fabs(toPInPI(currentTheta - targetTheta)) < 0.1);
+    
+    // For tracking and adjustment, we continue running even when close to target
+    // because the target position changes based on ball movement
+    
+    // Calculate velocity for smooth movement
+    double vx = (targetX - currentX) * _adjustmentSpeed;
+    double vy = (targetY - currentY) * _adjustmentSpeed;
+    double vtheta = toPInPI(targetTheta - currentTheta) * 0.5;
+    
+    // Apply limits
+    vx = cap(vx, _vxLimit, -_vxLimit);
+    vy = cap(vy, _vyLimit, -_vyLimit);
+    vtheta = cap(vtheta, _vthetaLimit, -_vthetaLimit);
+    
+    brain->client->setVelocity(vx, vy, vtheta);
+    
+    // Keep running to continuously adjust position
+    return NodeStatus::RUNNING;
+}
+
+void GoalKeeperTrackAndAdjust::onHalted()
+{
+    brain->client->setVelocity(0, 0, 0);
+    brain->log->logToScreen("GoalKeeperTrackAndAdjust", "Goalkeeper tracking halted", 0xFFFF00FF);
 }

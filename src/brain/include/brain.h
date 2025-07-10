@@ -27,6 +27,7 @@
 #include "robot_client.h"
 #include "brain_communication.h"
 #include "voice_client.h"
+#include "robot_strategy.h"
 #include "brain/msg/kick.hpp"
 
 using namespace std;
@@ -53,6 +54,8 @@ public:
     std::shared_ptr<BrainTree> tree;
     // The BrainCommunication object, which contains the operations related to communication each other and to GameController.
     std::shared_ptr<BrainCommunication> communication;
+    // The RobotStrategy object, which contains cost function and collaboration logic.
+    std::shared_ptr<RobotStrategy> strategy;
 
     Brain();
 
@@ -62,6 +65,12 @@ public:
 
     // Call it within the Ros2 loop
     void tick();
+
+    // Collaboration methods
+    void updateCollaboration();
+    void calculateBallCost();
+    void processMasterDecision();
+    void processSlaveUpdates();
 
     /**
      * @brief Calculate the vector angles from the current ball to the two goalposts of the opposing side in the coordinate system of the pitch.
@@ -93,6 +102,7 @@ private:
     void gameControlCallback(const game_controller_interface::msg::GameControlData &msg);
     void detectionsCallback(const vision_interface::msg::Detections &msg);
     void imageCallback(const sensor_msgs::msg::Image &msg);
+    void depthImageCallback(const sensor_msgs::msg::Image &msg);
     void odometerCallback(const booster_interface::msg::Odometer &msg);
     void lowStateCallback(const booster_interface::msg::LowState &msg);
     void headPoseCallback(const geometry_msgs::msg::Pose &msg);
@@ -108,6 +118,7 @@ private:
     rclcpp::Subscription<booster_interface::msg::Odometer>::SharedPtr odometerSubscription;
     rclcpp::Subscription<booster_interface::msg::LowState>::SharedPtr lowStateSubscription;
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr imageSubscription;
+    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr depthImageSubscription;
     rclcpp::Subscription<geometry_msgs::msg::Pose>::SharedPtr headPoseSubscription;
     rclcpp::Subscription<booster_interface::msg::RawBytesMsg>::SharedPtr recoveryStateSubscription;
     rclcpp::Publisher<brain::msg::Kick>::SharedPtr publishKickReferenceMsg;

@@ -32,6 +32,7 @@ public:
     string fieldType;      // Corresponds to game.field_type  "adult_size"(14*9) | "kid_size" (9*6)
     string playerRole;     // Corresponds to game.player_role   "striker" | "goal_keeper"
     string playerStartPos; // Corresponds to game.player_start_post  "left" | "right"
+    string collaborationRole; // Corresponds to game.collaboration_role "master" | "slave"
 
     double robotHeight;     // Corresponds to robot.robot_height
     double robotOdomFactor; // Corresponds to robot.odom_factor odom

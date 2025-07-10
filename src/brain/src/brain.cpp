@@ -1,5 +1,7 @@
 #include <iostream>
 #include <string>
+#include <limits>
+#include <cmath>
 
 #include "brain.h"
 #include "utils/print.h"
@@ -17,6 +19,7 @@ Brain::Brain() : rclcpp::Node("brain_node")
 
     declare_parameter<string>("game.player_role", "");
     declare_parameter<string>("game.player_start_pos", "");
+    declare_parameter<string>("game.collaboration_role", "slave");
 
     declare_parameter<double>("robot.robot_height", 1.0);
     declare_parameter<double>("robot.odom_factor", 1.0);
@@ -47,6 +50,7 @@ void Brain::init()
     client = std::make_shared<RobotClient>(this);
     voiceClient = std::make_shared<VoiceClient>(this);
     communication = std::make_shared<BrainCommunication>(this);
+    strategy = std::make_shared<RobotStrategy>(RobotConstants(), config->fieldDimensions);
 
     locator->init(config->fieldDimensions, 4, 0.5);
 
@@ -68,6 +72,7 @@ void Brain::init()
     odometerSubscription = create_subscription<booster_interface::msg::Odometer>("/odometer_state", 1, bind(&Brain::odometerCallback, this, _1));
     lowStateSubscription = create_subscription<booster_interface::msg::LowState>("/low_state", 1, bind(&Brain::lowStateCallback, this, _1));
     imageSubscription = create_subscription<sensor_msgs::msg::Image>("/camera/camera/color/image_raw", 1, bind(&Brain::imageCallback, this, _1));
+    depthImageSubscription = create_subscription<sensor_msgs::msg::Image>("/camera/camera/aligned_depth_to_color/image_raw", 1, bind(&Brain::depthImageCallback, this, _1));
     headPoseSubscription = create_subscription<geometry_msgs::msg::Pose>("/head_pose", 1, bind(&Brain::headPoseCallback, this, _1));
     recoveryStateSubscription = create_subscription<booster_interface::msg::RawBytesMsg>("fall_down_recovery_state", 1, bind(&Brain::recoveryStateCallback, this, _1));
 
@@ -82,6 +87,7 @@ void Brain::loadConfig()
     get_parameter("game.field_type", config->fieldType);
     get_parameter("game.player_role", config->playerRole);
     get_parameter("game.player_start_pos", config->playerStartPos);
+    get_parameter("game.collaboration_role", config->collaborationRole);
 
     get_parameter("robot.robot_height", config->robotHeight);
     get_parameter("robot.odom_factor", config->robotOdomFactor);
@@ -109,14 +115,196 @@ void Brain::loadConfig()
 void Brain::tick()
 {
     updateMemory();
+    updateCollaboration();
     tree->tick();
     pubKickReferenceMsg();
+}
+
+void Brain::updateCollaboration() {
+    // Only process collaboration if ball is detected
+    if (!data->ballDetected) {
+        static int no_ball_counter = 0;
+        if (no_ball_counter % 500 == 0) { // 每500次输出一次
+            prtDebug(format("协作更新: 球未检测到，跳过协作逻辑 (role: %s)", config->collaborationRole.c_str()));
+        }
+        no_ball_counter++;
+    }
+    
+    // Calculate our cost to reach the ball
+    calculateBallCost();
+    
+    // Debug: 输出当前状态
+    static int collab_counter = 0;
+    if (collab_counter % 100 == 0) { // 每100次输出一次
+        prtDebug(format("协作更新: role='%s', playerId=%d, ballCost=%.2f, possessionPlayerId=%d", 
+            config->collaborationRole.c_str(), config->playerId, data->ballCost, data->possessionPlayerId));
+    }
+    collab_counter++;
+    
+    // Process collaboration based on our role
+    if (config->collaborationRole == "master") {
+        processMasterDecision();
+    } else {
+        processSlaveUpdates();
+    }
+}
+
+void Brain::calculateBallCost() {
+    Point2D ballPos;
+    bool ballPosFound = false;
+    
+    // 首先检查自己是否看到球
+    if (data->ballDetected) {
+        ballPos.x = data->ball.posToField.x;
+        ballPos.y = data->ball.posToField.y;
+        ballPosFound = true;
+        prtDebug("使用自己检测到的球位置计算成本");
+    } else {
+        // 自己没看到球，尝试使用队友的球信息
+        auto teammatesBallInfo = communication->getTeammateBallInfo();
+        
+        if (!teammatesBallInfo.empty()) {
+            // 找到距离自己最近的球位置
+            double minDistance = std::numeric_limits<double>::infinity();
+            Point2D closestBallPos;
+            int closestTeammateId = -1;
+            
+            for (const auto& teammate : teammatesBallInfo) {
+                if (teammate.ballDetected) {
+                    // 计算球到自己的距离
+                    double distance = std::sqrt(
+                        std::pow(teammate.ballPosX - data->robotPoseToField.x, 2) + 
+                        std::pow(teammate.ballPosY - data->robotPoseToField.y, 2)
+                    );
+                    
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        closestBallPos.x = teammate.ballPosX;
+                        closestBallPos.y = teammate.ballPosY;
+                        closestTeammateId = teammate.playerId;
+                        ballPosFound = true;
+                    }
+                }
+            }
+            
+            if (ballPosFound) {
+                ballPos = closestBallPos;
+                prtDebug(format("使用队友 %d 检测到的球位置计算成本 (距离: %.2fm)", 
+                    closestTeammateId, minDistance));
+            }
+        }
+    }
+    
+    // 如果所有人都没看到球，返回无穷
+    if (!ballPosFound) {
+        data->ballCost = std::numeric_limits<double>::infinity();
+        prtDebug("所有机器人都没检测到球，成本设为无穷");
+        return;
+    }
+    
+    // 使用选定的球位置计算成本
+    Pose2D robotPose = data->robotPoseToField;
+    data->ballCost = strategy->calculateCostFunction(robotPose, ballPos);
+    data->lastCostCalculation = get_clock()->now();
+}
+
+void Brain::processMasterDecision() {
+    // Collect cost information from all robots (including self)
+    std::vector<std::pair<int, double>> robotCosts;
+    
+    // Add our own cost
+    robotCosts.push_back({config->playerId, data->ballCost});
+    
+    // Add teammates' costs
+    auto teammates = communication->getTeammateCollaborationInfo();
+    prtDebug(format("Master收集信息: 自己(ID=%d, cost=%.2f), 队友数量=%zu", 
+        config->playerId, data->ballCost, teammates.size()));
+    
+    for (const auto& teammate : teammates) {
+        robotCosts.push_back({teammate.playerId, teammate.ballCost});
+        prtDebug(format("队友信息: ID=%d, cost=%.2f", teammate.playerId, teammate.ballCost));
+    }
+    
+    // Find robot with minimum cost
+    int bestRobotId = config->playerId;
+    double minCost = data->ballCost;
+    
+    for (const auto& robotCost : robotCosts) {
+        if (robotCost.second < minCost) {
+            minCost = robotCost.second;
+            bestRobotId = robotCost.first;
+        }
+    }
+    
+    // Check if all costs are infinite (no one can see the ball)
+    if (std::isinf(minCost)) {
+        // No one can see the ball, no possession assignment
+        int oldPossessionId = data->possessionPlayerId;
+        data->possessionPlayerId = -1;
+        data->hasBallPossession = false;
+        prtDebug(format("Master决策: 所有机器人成本都是无穷，清除球权分配 (之前分配给: %d)", oldPossessionId));
+    } else {
+        // Update possession assignment
+        int oldPossessionId = data->possessionPlayerId;
+        data->possessionPlayerId = bestRobotId;
+        data->hasBallPossession = (bestRobotId == config->playerId);
+        
+        // Log decision
+        prtDebug(format("Master决策: 机器人 %d 应该占据球 (cost=%.2f), 之前分配给: %d", 
+            bestRobotId, minCost, oldPossessionId));
+    }
+}
+
+void Brain::processSlaveUpdates() {
+    // Get possession assignment from master
+    auto teammates = communication->getTeammateCollaborationInfo();
+    
+    prtDebug(format("Slave更新: 收到%zu个队友信息", teammates.size()));
+    
+    bool foundMaster = false;
+    for (const auto& teammate : teammates) {
+        prtDebug(format("队友信息: ID=%d, masterID=%d, possessionID=%d", 
+            teammate.playerId, teammate.masterPlayerId, teammate.possessionPlayerId));
+        
+        // Check if this teammate is the master
+        if (teammate.masterPlayerId == teammate.playerId) {
+            foundMaster = true;
+            int oldPossessionId = data->possessionPlayerId;
+            // Update our possession status based on master's decision
+            data->possessionPlayerId = teammate.possessionPlayerId;
+            data->hasBallPossession = (teammate.possessionPlayerId == config->playerId);
+            prtDebug(format("从Master(ID=%d)收到决策: possession从%d更新为%d", 
+                teammate.playerId, oldPossessionId, teammate.possessionPlayerId));
+            break;
+        }
+    }
+    
+    if (!foundMaster && teammates.size() > 0) {
+        prtDebug("警告: 没有找到Master机器人的信息");
+    }
+    
+    // Log possession status (movement will be handled by behavior tree)
+    static int status_counter = 0;
+    if (status_counter % 100 == 0) { // 每100次输出一次状态
+        if (data->hasBallPossession) {
+            prtDebug("我拥有球权，正常执行策略");
+        } else {
+            prtDebug(format("机器人 %d 拥有球权，我保持静止", data->possessionPlayerId));
+        }
+    }
+    status_counter++;
 }
 
 void Brain::updateMemory()
 {
     // Update current time for behavior tree scripts
     tree->setEntry<double>("current_time", get_clock()->now().seconds());
+    
+    // Update collaboration-related blackboard entries
+    tree->setEntry<bool>("has_ball_possession", data->hasBallPossession);
+    tree->setEntry<int>("possession_player_id", data->possessionPlayerId);
+    tree->setEntry<double>("ball_cost", data->ballCost);
+    tree->setEntry<bool>("is_master_robot", config->collaborationRole == "master");
     
     updateBallMemory();
 
@@ -633,6 +821,74 @@ void Brain::imageCallback(const sensor_msgs::msg::Image &msg)
         double time = msg.header.stamp.sec + static_cast<double>(msg.header.stamp.nanosec) * 1e-9;
         log->setTimeSeconds(time);
         log->log("image/img", rerun::EncodedImage::from_bytes(compressed_image));
+    }
+}
+
+void Brain::depthImageCallback(const sensor_msgs::msg::Image &msg)
+{
+    if (!config->rerunLogEnable)
+        return;
+
+    static int counter = 0;
+    counter++;
+    if (counter % config->rerunLogImgInterval == 0)
+    {
+        // 处理深度图像
+        cv::Mat depthImage;
+        
+        // 检查图像编码格式
+        if (msg.encoding == "16UC1" || msg.encoding == "mono16")
+        {
+            // 16位单通道深度图像
+            depthImage = cv::Mat(msg.height, msg.width, CV_16UC1, const_cast<uint8_t *>(msg.data.data()));
+        }
+        else if (msg.encoding == "32FC1")
+        {
+            // 32位浮点深度图像
+            depthImage = cv::Mat(msg.height, msg.width, CV_32FC1, const_cast<uint8_t *>(msg.data.data()));
+        }
+        else
+        {
+            // 不支持的编码格式，直接返回
+            return;
+        }
+
+        // 将深度图像转换为8位灰度图像用于显示
+        cv::Mat depthImage8bit;
+        if (depthImage.type() == CV_16UC1)
+        {
+            // 16位深度图像转换为8位，进行归一化
+            double minVal, maxVal;
+            cv::minMaxLoc(depthImage, &minVal, &maxVal);
+            depthImage.convertTo(depthImage8bit, CV_8UC1, 255.0 / (maxVal - minVal), -minVal * 255.0 / (maxVal - minVal));
+            // 翻转灰度值：近的地方白色，远的地方黑色
+            depthImage8bit = 255 - depthImage8bit;
+        }
+        else if (depthImage.type() == CV_32FC1)
+        {
+            // 32位浮点深度图像转换为8位
+            double minVal, maxVal;
+            cv::minMaxLoc(depthImage, &minVal, &maxVal);
+            depthImage.convertTo(depthImage8bit, CV_8UC1, 255.0 / (maxVal - minVal), -minVal * 255.0 / (maxVal - minVal));
+            // 翻转灰度值：近的地方白色，远的地方黑色
+            depthImage8bit = 255 - depthImage8bit;
+        }
+
+        // 将单通道灰度图像转换为RGB格式
+        cv::Mat depthImageRGB;
+        cv::cvtColor(depthImage8bit, depthImageRGB, cv::COLOR_GRAY2RGB);
+
+        // 压缩图像
+        std::vector<uint8_t> compressed_depth_image;
+        std::vector<int> compression_params = {cv::IMWRITE_JPEG_QUALITY, 10};
+        cv::imencode(".jpg", depthImageRGB, compressed_depth_image, compression_params);
+
+        // 发送到rerun
+        double time = msg.header.stamp.sec + static_cast<double>(msg.header.stamp.nanosec) * 1e-9;
+
+        //TODO: Change back if you want to show the depth image
+        // log->setTimeSeconds(time);
+        // log->log("image/depth", rerun::EncodedImage::from_bytes(compressed_depth_image));
     }
 }
 
