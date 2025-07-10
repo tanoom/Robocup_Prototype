@@ -68,6 +68,7 @@ void Brain::init()
     odometerSubscription = create_subscription<booster_interface::msg::Odometer>("/odometer_state", 1, bind(&Brain::odometerCallback, this, _1));
     lowStateSubscription = create_subscription<booster_interface::msg::LowState>("/low_state", 1, bind(&Brain::lowStateCallback, this, _1));
     imageSubscription = create_subscription<sensor_msgs::msg::Image>("/camera/camera/color/image_raw", 1, bind(&Brain::imageCallback, this, _1));
+    depthImageSubscription = create_subscription<sensor_msgs::msg::Image>("/camera/camera/aligned_depth_to_color/image_raw", 1, bind(&Brain::depthImageCallback, this, _1));
     headPoseSubscription = create_subscription<geometry_msgs::msg::Pose>("/head_pose", 1, bind(&Brain::headPoseCallback, this, _1));
     recoveryStateSubscription = create_subscription<booster_interface::msg::RawBytesMsg>("fall_down_recovery_state", 1, bind(&Brain::recoveryStateCallback, this, _1));
 
@@ -621,6 +622,74 @@ void Brain::imageCallback(const sensor_msgs::msg::Image &msg)
         double time = msg.header.stamp.sec + static_cast<double>(msg.header.stamp.nanosec) * 1e-9;
         log->setTimeSeconds(time);
         log->log("image/img", rerun::EncodedImage::from_bytes(compressed_image));
+    }
+}
+
+void Brain::depthImageCallback(const sensor_msgs::msg::Image &msg)
+{
+    if (!config->rerunLogEnable)
+        return;
+
+    static int counter = 0;
+    counter++;
+    if (counter % config->rerunLogImgInterval == 0)
+    {
+        // 处理深度图像
+        cv::Mat depthImage;
+        
+        // 检查图像编码格式
+        if (msg.encoding == "16UC1" || msg.encoding == "mono16")
+        {
+            // 16位单通道深度图像
+            depthImage = cv::Mat(msg.height, msg.width, CV_16UC1, const_cast<uint8_t *>(msg.data.data()));
+        }
+        else if (msg.encoding == "32FC1")
+        {
+            // 32位浮点深度图像
+            depthImage = cv::Mat(msg.height, msg.width, CV_32FC1, const_cast<uint8_t *>(msg.data.data()));
+        }
+        else
+        {
+            // 不支持的编码格式，直接返回
+            return;
+        }
+
+        // 将深度图像转换为8位灰度图像用于显示
+        cv::Mat depthImage8bit;
+        if (depthImage.type() == CV_16UC1)
+        {
+            // 16位深度图像转换为8位，进行归一化
+            double minVal, maxVal;
+            cv::minMaxLoc(depthImage, &minVal, &maxVal);
+            depthImage.convertTo(depthImage8bit, CV_8UC1, 255.0 / (maxVal - minVal), -minVal * 255.0 / (maxVal - minVal));
+            // 翻转灰度值：近的地方白色，远的地方黑色
+            depthImage8bit = 255 - depthImage8bit;
+        }
+        else if (depthImage.type() == CV_32FC1)
+        {
+            // 32位浮点深度图像转换为8位
+            double minVal, maxVal;
+            cv::minMaxLoc(depthImage, &minVal, &maxVal);
+            depthImage.convertTo(depthImage8bit, CV_8UC1, 255.0 / (maxVal - minVal), -minVal * 255.0 / (maxVal - minVal));
+            // 翻转灰度值：近的地方白色，远的地方黑色
+            depthImage8bit = 255 - depthImage8bit;
+        }
+
+        // 将单通道灰度图像转换为RGB格式
+        cv::Mat depthImageRGB;
+        cv::cvtColor(depthImage8bit, depthImageRGB, cv::COLOR_GRAY2RGB);
+
+        // 压缩图像
+        std::vector<uint8_t> compressed_depth_image;
+        std::vector<int> compression_params = {cv::IMWRITE_JPEG_QUALITY, 10};
+        cv::imencode(".jpg", depthImageRGB, compressed_depth_image, compression_params);
+
+        // 发送到rerun
+        double time = msg.header.stamp.sec + static_cast<double>(msg.header.stamp.nanosec) * 1e-9;
+
+        //TODO: Change back if you want to show the depth image
+        // log->setTimeSeconds(time);
+        // log->log("image/depth", rerun::EncodedImage::from_bytes(compressed_depth_image));
     }
 }
 

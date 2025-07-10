@@ -438,6 +438,101 @@ private:
 
 
 
+// ------------------------------- FOR GOALKEEPER -------------------------------
+
+// GoalKeeper Position: Maintain goalkeeper position at goal center with 90-degree orientation
+class GoalKeeperPosition : public StatefulActionNode
+{
+public:
+    GoalKeeperPosition(const string &name, const NodeConfig &config, Brain *_brain) : StatefulActionNode(name, config), brain(_brain) {}
+
+    static PortsList providedPorts()
+    {
+        return {
+            InputPort<double>("base_x", -6.5, "Base X position for goalkeeper (goal center)"),
+            InputPort<double>("base_y", 0.0, "Base Y position for goalkeeper"),
+            InputPort<double>("base_theta", 1.57, "Base orientation (90 degrees)"),
+            InputPort<double>("y_adjustment_factor", 0.5, "Factor for Y adjustment based on ball position"),
+            InputPort<double>("max_y_offset", 1.0, "Maximum Y offset from base position"),
+            InputPort<double>("vx_limit", 0.3, "X velocity limit"),
+            InputPort<double>("vy_limit", 0.3, "Y velocity limit"),
+            InputPort<double>("vtheta_limit", 0.5, "Angular velocity limit"),
+            InputPort<double>("position_tolerance", 0.2, "Position tolerance for considering target reached"),
+            InputPort<double>("angle_tolerance", 0.15, "Angle tolerance for considering target reached"),
+        };
+    }
+
+    NodeStatus onStart() override;
+    NodeStatus onRunning() override;
+    void onHalted() override;
+
+private:
+    Brain *brain;
+    double _targetX, _targetY, _targetTheta;
+    double _baseX, _baseY, _baseTheta;
+    double _yAdjustmentFactor, _maxYOffset;
+    double _vxLimit, _vyLimit, _vthetaLimit;
+    double _positionTolerance, _angleTolerance;
+};
+
+// GoalKeeper Intercept: Actively intercept the ball when it's close
+class GoalKeeperIntercept : public StatefulActionNode
+{
+public:
+    GoalKeeperIntercept(const string &name, const NodeConfig &config, Brain *_brain) : StatefulActionNode(name, config), brain(_brain) {}
+
+    static PortsList providedPorts()
+    {
+        return {
+            InputPort<double>("intercept_distance", 2.0, "Distance to start intercepting"),
+            InputPort<double>("prediction_time", 1.0, "Time to predict ball movement"),
+            InputPort<double>("vx_limit", 0.6, "X velocity limit for interception"),
+            InputPort<double>("vy_limit", 0.4, "Y velocity limit for interception"),
+            InputPort<double>("vtheta_limit", 1.0, "Angular velocity limit"),
+        };
+    }
+
+    NodeStatus onStart() override;
+    NodeStatus onRunning() override;
+    void onHalted() override;
+
+private:
+    Brain *brain;
+    double _interceptX, _interceptY;
+    bool _hasValidIntercept;
+    rclcpp::Time _startTime;
+};
+
+// GoalKeeper Track and Adjust: Track ball and adjust position accordingly
+class GoalKeeperTrackAndAdjust : public StatefulActionNode
+{
+public:
+    GoalKeeperTrackAndAdjust(const string &name, const NodeConfig &config, Brain *_brain) : StatefulActionNode(name, config), brain(_brain) {}
+
+    static PortsList providedPorts()
+    {
+        return {
+            InputPort<double>("base_x", -6.5, "Base X position for goalkeeper"),
+            InputPort<double>("adjustment_speed", 0.2, "Speed of position adjustment"),
+            InputPort<double>("ball_y_factor", 0.3, "Factor for Y adjustment based on ball Y position"),
+            InputPort<double>("max_adjustment", 0.8, "Maximum adjustment from base position"),
+            InputPort<double>("vx_limit", 0.2, "X velocity limit"),
+            InputPort<double>("vy_limit", 0.2, "Y velocity limit"),
+            InputPort<double>("vtheta_limit", 0.3, "Angular velocity limit"),
+            InputPort<double>("position_tolerance", 0.15, "Position tolerance for smooth adjustment"),
+        };
+    }
+
+    NodeStatus onStart() override;
+    NodeStatus onRunning() override;
+    void onHalted() override;
+
+private:
+    Brain *brain;
+    double _baseX, _adjustmentSpeed, _ballYFactor, _maxAdjustment;
+    double _vxLimit, _vyLimit, _vthetaLimit, _positionTolerance;
+};
+
 // ------------------------------- FOR DEMO -------------------------------
 
 // This node is for demonstrating chasing the ball and is not used during actual gameplay.

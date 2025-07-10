@@ -89,6 +89,7 @@ private:
     void gameControlCallback(const game_controller_interface::msg::GameControlData &msg);
     void detectionsCallback(const vision_interface::msg::Detections &msg);
     void imageCallback(const sensor_msgs::msg::Image &msg);
+    void depthImageCallback(const sensor_msgs::msg::Image &msg);
     void odometerCallback(const booster_interface::msg::Odometer &msg);
     void lowStateCallback(const booster_interface::msg::LowState &msg);
     void headPoseCallback(const geometry_msgs::msg::Pose &msg);
@@ -104,6 +105,7 @@ private:
     rclcpp::Subscription<booster_interface::msg::Odometer>::SharedPtr odometerSubscription;
     rclcpp::Subscription<booster_interface::msg::LowState>::SharedPtr lowStateSubscription;
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr imageSubscription;
+    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr depthImageSubscription;
     rclcpp::Subscription<geometry_msgs::msg::Pose>::SharedPtr headPoseSubscription;
     rclcpp::Subscription<booster_interface::msg::RawBytesMsg>::SharedPtr recoveryStateSubscription;
 
