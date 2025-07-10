@@ -55,7 +55,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
             'tree', 
-            default_value='game_with_teammate_ball.xml',
+            default_value='collaborative_game.xml',
             description='Specify behavior tree file name. DO NOT include full path, file should be in src/brain/config/behavior_trees'
         ),
         DeclareLaunchArgument(

@@ -27,6 +27,7 @@
 #include "robot_client.h"
 #include "brain_communication.h"
 #include "voice_client.h"
+#include "robot_strategy.h"
 
 using namespace std;
 
@@ -52,6 +53,8 @@ public:
     std::shared_ptr<BrainTree> tree;
     // The BrainCommunication object, which contains the operations related to communication each other and to GameController.
     std::shared_ptr<BrainCommunication> communication;
+    // The RobotStrategy object, which contains cost function and collaboration logic.
+    std::shared_ptr<RobotStrategy> strategy;
 
     Brain();
 
@@ -61,6 +64,12 @@ public:
 
     // Call it within the Ros2 loop
     void tick();
+
+    // Collaboration methods
+    void updateCollaboration();
+    void calculateBallCost();
+    void processMasterDecision();
+    void processSlaveUpdates();
 
     /**
      * @brief Calculate the vector angles from the current ball to the two goalposts of the opposing side in the coordinate system of the pitch.

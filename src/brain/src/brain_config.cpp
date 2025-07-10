@@ -3,7 +3,6 @@
 
 void BrainConfig::handle()
 {
-    // playerStartPos[left, right]
     if (playerStartPos != "left" && playerStartPos != "right")
     {
         throw invalid_argument("palyer_start_pos must be one of [left, right]. Got: " + playerStartPos);
@@ -14,6 +13,23 @@ void BrainConfig::handle()
     {
         throw invalid_argument("player_role must be one of [striker, goal_keeper]. Got: " + playerRole);
     }
+
+    // collaborationRole [master, slave] - trim whitespace and check
+    printf("DEBUG: Checking collaborationRole\n");
+    string trimmedRole = collaborationRole;
+    // Remove leading and trailing whitespace
+    trimmedRole.erase(0, trimmedRole.find_first_not_of(" \t\n\r\f\v"));
+    trimmedRole.erase(trimmedRole.find_last_not_of(" \t\n\r\f\v") + 1);
+    
+    printf("DEBUG: trimmedRole = '%s' (length: %zu)\n", trimmedRole.c_str(), trimmedRole.length());
+    
+    if (trimmedRole != "master" && trimmedRole != "slave")
+    {
+        throw invalid_argument("collaboration_role must be one of [master, slave]. Got: '" + collaborationRole + "' (length: " + to_string(collaborationRole.length()) + ")");
+    }
+    
+    // Update the cleaned value
+    collaborationRole = trimmedRole;
 
     // playerId [0, 1, 2, 3]
     if (playerId != 0 && playerId != 1 && playerId != 2 && playerId != 3)
@@ -45,6 +61,7 @@ void BrainConfig::print(ostream &os)
     os << "fieldType = " << fieldType << endl;
     os << "playerRole = " << playerRole << endl;
     os << "playerStartPos = " << playerStartPos << endl;
+    os << "collaborationRole = " << collaborationRole << endl;
     os << "----------------------------------------" << endl;
     os << "robotHeight = " << robotHeight << endl;
     os << "robotOdomFactor = " << robotOdomFactor << endl;

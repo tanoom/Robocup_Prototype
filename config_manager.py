@@ -124,6 +124,7 @@ class RobotConfigManager:
       field_type: "{brain_config['game']['field_type']}"
       player_role: "{brain_config['game']['player_role']}"
       player_start_pos: "{brain_config['game']['player_start_pos']}"
+      collaboration_role: "{brain_config['game']['collaboration_role']}"
       
     robot:
       robot_height: 1.0
@@ -143,7 +144,7 @@ class RobotConfigManager:
         with open(brain_path, 'w', encoding='utf-8') as f:
             f.write(yaml_content)
         
-        print(f"  ✓ Updated Brain configuration: player_id={brain_config['game']['player_id']}, role={brain_config['game']['player_role']}")
+        print(f"  ✓ Updated Brain configuration: player_id={brain_config['game']['player_id']}, role={brain_config['game']['player_role']}, collaboration_role={brain_config['game']['collaboration_role']}")
     
     def update_fastdds_config(self, network_config):
         """Update FastDDS network configuration"""
@@ -278,6 +279,7 @@ human_like_pose_estimator:
             print(f"   Player ID: {robot_config['brain']['game']['player_id']}")
             print(f"   Role: {robot_config['brain']['game']['player_role']}")
             print(f"   Starting position: {robot_config['brain']['game']['player_start_pos']}")
+            print(f"   Collaboration role: {robot_config['brain']['game']['collaboration_role']}")
             
             return True
             

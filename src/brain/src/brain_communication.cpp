@@ -290,7 +290,12 @@ void BrainCommunication::spinDiscoveryReceiver() {
                 false,  // ballDetected
                 0.0f,   // ballPosX
                 0.0f,   // ballPosY
-                false   // hasValidBallInfo
+                false,  // hasValidBallInfo
+                0.0f,   // ballCost
+                false,  // hasPossession
+                -1,     // masterPlayerId
+                -1,     // possessionPlayerId
+                false   // hasValidCollaborationInfo
             };
         }
     }
@@ -356,6 +361,22 @@ void BrainCommunication::unicastCommunication() {
             msg.ballPosX = 0.0f;
             msg.ballPosY = 0.0f;
         }
+        
+        // 填充协作信息
+        msg.ballCost = static_cast<float>(brain->data->ballCost);
+        msg.hasPossession = brain->data->hasBallPossession;
+        msg.masterPlayerId = (brain->config->collaborationRole == "master") ? brain->config->playerId : -1;
+        msg.possessionPlayerId = brain->data->possessionPlayerId;
+        
+        // Debug: 输出协作信息状态
+        static int debug_counter = 0;
+        if (debug_counter % 100 == 0) { // 每100次输出一次，避免spam
+            cout << YELLOW_CODE << format(
+                "DEBUG发送协作信息: role='%s', playerId=%d, masterPlayerId=%d, possessionPlayerId=%d, ballCost=%.2f",
+                brain->config->collaborationRole.c_str(), brain->config->playerId,
+                msg.masterPlayerId, msg.possessionPlayerId, msg.ballCost) << RESET_CODE << endl;
+        }
+        debug_counter++;
         
         // TODO: add more information you want to send to teammates
         msg.testInfo = 1234567; 
@@ -470,6 +491,13 @@ void BrainCommunication::spinCommunicationReceiver() {
                 it->second.ballPosY = msg.ballPosY;
                 it->second.hasValidBallInfo = true;
                 
+                // 更新队友的协作信息
+                it->second.ballCost = msg.ballCost;
+                it->second.hasPossession = msg.hasPossession;
+                it->second.masterPlayerId = msg.masterPlayerId;
+                it->second.possessionPlayerId = msg.possessionPlayerId;
+                it->second.hasValidCollaborationInfo = true;
+                
                 it->second.lastUpdate = brain->get_clock()->now();
                 
                 cout << GREEN_CODE << format(
@@ -481,6 +509,11 @@ void BrainCommunication::spinCommunicationReceiver() {
                 if (msg.ballDetected) {
                     cout << format(" 球位置: %.2f, %.2f", msg.ballPosX, msg.ballPosY);
                 }
+                
+                cout << format(" 协作(cost: %.2f, possession: %s, master: %d, assigned: %d)", 
+                    msg.ballCost, msg.hasPossession ? "是" : "否", 
+                    msg.masterPlayerId, msg.possessionPlayerId);
+                
                 cout << ")" << RESET_CODE << endl;
             }
         }
@@ -519,6 +552,19 @@ std::vector<BrainCommunication::TeammateInfo> BrainCommunication::getTeammateBal
     
     for (const auto& pair : _teammate_addresses) {
         if (pair.second.hasValidBallInfo) {
+            teammates.push_back(pair.second);
+        }
+    }
+    
+    return teammates;
+}
+
+std::vector<BrainCommunication::TeammateInfo> BrainCommunication::getTeammateCollaborationInfo() {
+    std::lock_guard<std::mutex> lock(_teammate_addresses_mutex);
+    std::vector<TeammateInfo> teammates;
+    
+    for (const auto& pair : _teammate_addresses) {
+        if (pair.second.hasValidCollaborationInfo) {
             teammates.push_back(pair.second);
         }
     }

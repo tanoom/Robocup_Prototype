@@ -94,6 +94,12 @@ void BrainTree::initEntry()
     
     // Time related
     setEntry<double>("current_time", 0.0);
+    
+    // Collaboration related
+    setEntry<bool>("has_ball_possession", false);
+    setEntry<int>("possession_player_id", -1);
+    setEntry<double>("ball_cost", 0.0);
+    setEntry<bool>("is_master_robot", false);
 }
 
 void BrainTree::tick()

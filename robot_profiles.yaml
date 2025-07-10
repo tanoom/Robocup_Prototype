@@ -1,8 +1,9 @@
-current_robot: robot1
+current_robot: robot2
 robots:
   robot1:
     brain:
       game:
+        collaboration_role: master
         field_type: adult_size
         player_id: 0
         player_role: striker
@@ -33,6 +34,7 @@ robots:
   robot2:
     brain:
       game:
+        collaboration_role: slave
         field_type: adult_size
         player_id: 1
         player_role: striker
@@ -63,6 +65,7 @@ robots:
   robot3:
     brain:
       game:
+        collaboration_role: slave
         field_type: adult_size
         player_id: 2
         player_role: goal_keeper
@@ -93,6 +96,7 @@ robots:
   robot4:
     brain:
       game:
+        collaboration_role: slave
         field_type: adult_size
         player_id: 3
         player_role: goal_keeper

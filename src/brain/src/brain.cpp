@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string>
+#include <limits>
 
 #include "brain.h"
 #include "utils/print.h"
@@ -17,6 +18,7 @@ Brain::Brain() : rclcpp::Node("brain_node")
 
     declare_parameter<string>("game.player_role", "");
     declare_parameter<string>("game.player_start_pos", "");
+    declare_parameter<string>("game.collaboration_role", "slave");
 
     declare_parameter<double>("robot.robot_height", 1.0);
     declare_parameter<double>("robot.odom_factor", 1.0);
@@ -47,6 +49,7 @@ void Brain::init()
     client = std::make_shared<RobotClient>(this);
     voiceClient = std::make_shared<VoiceClient>(this);
     communication = std::make_shared<BrainCommunication>(this);
+    strategy = std::make_shared<RobotStrategy>(RobotConstants(), config->fieldDimensions);
 
     locator->init(config->fieldDimensions, 4, 0.5);
 
@@ -81,6 +84,7 @@ void Brain::loadConfig()
     get_parameter("game.field_type", config->fieldType);
     get_parameter("game.player_role", config->playerRole);
     get_parameter("game.player_start_pos", config->playerStartPos);
+    get_parameter("game.collaboration_role", config->collaborationRole);
 
     get_parameter("robot.robot_height", config->robotHeight);
     get_parameter("robot.odom_factor", config->robotOdomFactor);
@@ -108,13 +112,147 @@ void Brain::loadConfig()
 void Brain::tick()
 {
     updateMemory();
+    updateCollaboration();
     tree->tick();
+}
+
+void Brain::updateCollaboration() {
+    // Only process collaboration if ball is detected
+    if (!data->ballDetected) {
+        static int no_ball_counter = 0;
+        if (no_ball_counter % 500 == 0) { // 每500次输出一次
+            prtDebug(format("协作更新: 球未检测到，跳过协作逻辑 (role: %s)", config->collaborationRole.c_str()));
+        }
+        no_ball_counter++;
+        return;
+    }
+    
+    // Calculate our cost to reach the ball
+    calculateBallCost();
+    
+    // Debug: 输出当前状态
+    static int collab_counter = 0;
+    if (collab_counter % 100 == 0) { // 每100次输出一次
+        prtDebug(format("协作更新: role='%s', playerId=%d, ballCost=%.2f, possessionPlayerId=%d", 
+            config->collaborationRole.c_str(), config->playerId, data->ballCost, data->possessionPlayerId));
+    }
+    collab_counter++;
+    
+    // Process collaboration based on our role
+    if (config->collaborationRole == "master") {
+        processMasterDecision();
+    } else {
+        processSlaveUpdates();
+    }
+}
+
+void Brain::calculateBallCost() {
+    if (!data->ballDetected) {
+        data->ballCost = std::numeric_limits<double>::infinity();
+        return;
+    }
+    
+    // Convert ball position to Point2D format for strategy calculation
+    Point2D ballPos;
+    ballPos.x = data->ball.posToField.x;
+    ballPos.y = data->ball.posToField.y;
+    
+    // Use current robot pose
+    Pose2D robotPose = data->robotPoseToField;
+    
+    // Calculate cost using strategy module
+    data->ballCost = strategy->calculateCostFunction(robotPose, ballPos);
+    data->lastCostCalculation = get_clock()->now();
+}
+
+void Brain::processMasterDecision() {
+    // Collect cost information from all robots (including self)
+    std::vector<std::pair<int, double>> robotCosts;
+    
+    // Add our own cost
+    robotCosts.push_back({config->playerId, data->ballCost});
+    
+    // Add teammates' costs
+    auto teammates = communication->getTeammateCollaborationInfo();
+    prtDebug(format("Master收集信息: 自己(ID=%d, cost=%.2f), 队友数量=%zu", 
+        config->playerId, data->ballCost, teammates.size()));
+    
+    for (const auto& teammate : teammates) {
+        robotCosts.push_back({teammate.playerId, teammate.ballCost});
+        prtDebug(format("队友信息: ID=%d, cost=%.2f", teammate.playerId, teammate.ballCost));
+    }
+    
+    // Find robot with minimum cost
+    int bestRobotId = config->playerId;
+    double minCost = data->ballCost;
+    
+    for (const auto& robotCost : robotCosts) {
+        if (robotCost.second < minCost) {
+            minCost = robotCost.second;
+            bestRobotId = robotCost.first;
+        }
+    }
+    
+    // Update possession assignment
+    int oldPossessionId = data->possessionPlayerId;
+    data->possessionPlayerId = bestRobotId;
+    data->hasBallPossession = (bestRobotId == config->playerId);
+    
+    // Log decision
+    prtDebug(format("Master决策: 机器人 %d 应该占据球 (cost=%.2f), 之前分配给: %d", 
+        bestRobotId, minCost, oldPossessionId));
+}
+
+void Brain::processSlaveUpdates() {
+    // Get possession assignment from master
+    auto teammates = communication->getTeammateCollaborationInfo();
+    
+    prtDebug(format("Slave更新: 收到%zu个队友信息", teammates.size()));
+    
+    bool foundMaster = false;
+    for (const auto& teammate : teammates) {
+        prtDebug(format("队友信息: ID=%d, masterID=%d, possessionID=%d", 
+            teammate.playerId, teammate.masterPlayerId, teammate.possessionPlayerId));
+        
+        // Check if this teammate is the master
+        if (teammate.masterPlayerId == teammate.playerId) {
+            foundMaster = true;
+            int oldPossessionId = data->possessionPlayerId;
+            // Update our possession status based on master's decision
+            data->possessionPlayerId = teammate.possessionPlayerId;
+            data->hasBallPossession = (teammate.possessionPlayerId == config->playerId);
+            prtDebug(format("从Master(ID=%d)收到决策: possession从%d更新为%d", 
+                teammate.playerId, oldPossessionId, teammate.possessionPlayerId));
+            break;
+        }
+    }
+    
+    if (!foundMaster && teammates.size() > 0) {
+        prtDebug("警告: 没有找到Master机器人的信息");
+    }
+    
+    // Log possession status (movement will be handled by behavior tree)
+    static int status_counter = 0;
+    if (status_counter % 100 == 0) { // 每100次输出一次状态
+        if (data->hasBallPossession) {
+            prtDebug("我拥有球权，正常执行策略");
+        } else {
+            prtDebug(format("机器人 %d 拥有球权，我保持静止", data->possessionPlayerId));
+        }
+    }
+    status_counter++;
 }
 
 void Brain::updateMemory()
 {
     // Update current time for behavior tree scripts
     tree->setEntry<double>("current_time", get_clock()->now().seconds());
+    
+    // Update collaboration-related blackboard entries
+    tree->setEntry<bool>("has_ball_possession", data->hasBallPossession);
+    tree->setEntry<int>("possession_player_id", data->possessionPlayerId);
+    tree->setEntry<double>("ball_cost", data->ballCost);
+    tree->setEntry<bool>("is_master_robot", config->collaborationRole == "master");
     
     updateBallMemory();
 

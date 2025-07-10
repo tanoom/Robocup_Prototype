@@ -41,6 +41,12 @@ public:
         float ballPosX;
         float ballPosY;
         bool hasValidBallInfo;
+        // 协作信息
+        float ballCost;
+        bool hasPossession;
+        int masterPlayerId;
+        int possessionPlayerId;
+        bool hasValidCollaborationInfo;
     };
 
     BrainCommunication(Brain *argBrain);
@@ -53,6 +59,9 @@ public:
     
     // 获取队友球信息
     std::vector<TeammateInfo> getTeammateBallInfo();
+    
+    // 获取队友协作信息
+    std::vector<TeammateInfo> getTeammateCollaborationInfo();
 
 private:
     Brain *brain;

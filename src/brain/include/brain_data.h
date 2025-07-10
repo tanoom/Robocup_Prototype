@@ -40,6 +40,12 @@ public:
     bool isRecoveryAvailable = false; // Whether stand up is available
     int currentRobotModeIndex = -1;
     bool recoveryPerformed = false; // Whether stand up command has been sent
+
+    // Collaboration data
+    double ballCost = 0.0;           // Cost for this robot to reach the ball
+    bool hasBallPossession = false;  // Whether this robot has ball possession
+    int possessionPlayerId = -1;     // Player ID that should possess the ball (-1 if unknown)
+    rclcpp::Time lastCostCalculation; // Last time cost was calculated
     rclcpp::Time lastRecoveryTime; // Time of last stand up
     bool enterDampingPerformed = false;
     bool needManualRelocate = false;

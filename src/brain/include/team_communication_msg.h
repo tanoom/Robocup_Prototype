@@ -18,6 +18,11 @@ struct TeamCommunicationMsg
     bool ballDetected;    // Whether ball is detected
     float ballPosX;       // Ball X coordinate (field coordinate system)
     float ballPosY;       // Ball Y coordinate (field coordinate system)
+    // Collaboration information
+    float ballCost;       // Cost function value for this robot to reach the ball
+    bool hasPossession;   // Whether this robot currently has ball possession
+    int masterPlayerId;   // Player ID of the master robot (-1 if unknown)
+    int possessionPlayerId; // Player ID of robot that should possess the ball (-1 if unknown)
     // TODO: You can add more information you want to send to teammates
     int testInfo;
 };
