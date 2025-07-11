@@ -33,7 +33,7 @@
 
                         <ReactiveSequence _while="gc_game_state=='READY'" name="ready">
                             <CamScanField />
-                            <MoveToPoseOnField x="-3.5" _while="player_role == 'striker'" vtheta_limit="2.0"  vx_limit="0.4" />
+                            <MoveToPoseOnField x="-2" _while="player_role == 'striker'" vtheta_limit="2.0"  vx_limit="0.4" />
                             <MoveToPoseOnField x="-5.5" _while="player_role == 'goal_keeper'" vtheta_limit="2.0"  vx_limit="0.4" />
                             <SelfLocate mode="trust_direction" />
                             <WaveHand _while="we_just_scored" action="start" />
@@ -55,11 +55,19 @@
                                 <SubTree ID="GoalKeeperPlay" _autoremap="true" _while="player_role == 'goal_keeper'" />
                             </ReactiveSequence>
                             
-                            <!-- 没有球权的机器人保持静止并跟踪球 -->
+                            <!-- 没有球权的机器人跟随有球权的机器人 -->
                             <ReactiveSequence _while="!has_ball_possession" name="no_possession">
                                 <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
-                                <SetVelocity />
-                                <PrintMsg msg="保持静止，等待球权分配" />
+                                <FollowTeammate 
+                                    follow_distance="2.0"
+                                    long_range_threshold="3.0"
+                                    turn_threshold="0.4"
+                                    vx_limit="0.4"
+                                    vy_limit="0.3"
+                                    vtheta_limit="0.8"
+                                    position_tolerance="0.3"
+                                    angle_tolerance="0.2" />
+                                <PrintMsg msg="跟随有球权的机器人" />
                             </ReactiveSequence>
                         </ReactiveSequence>
 
@@ -82,7 +90,16 @@
                             </ReactiveSequence>
                             <ReactiveSequence _while="!has_ball_possession" name="freekick_no_possession">
                                 <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
-                                <SetVelocity />
+                                <FollowTeammate 
+                                    follow_distance="2.0"
+                                    long_range_threshold="3.0"
+                                    turn_threshold="0.4"
+                                    vx_limit="0.3"
+                                    vy_limit="0.2"
+                                    vtheta_limit="0.6"
+                                    position_tolerance="0.3"
+                                    angle_tolerance="0.2" />
+                                <PrintMsg msg="任意球时跟随有球权的机器人" />
                             </ReactiveSequence>
                         </ReactiveSequence>
                         <ReactiveSequence _while="gc_game_sub_state=='SET'">

@@ -43,6 +43,7 @@ void BrainTree::init()
     REGISTER_BUILDER(GoBackInField)
     REGISTER_BUILDER(TurnOnSpot)
     REGISTER_BUILDER(GoToTeammateBall)
+    REGISTER_BUILDER(FollowTeammate)
 
     // GoalKeeper Nodes
     REGISTER_BUILDER(GoalKeeperPosition)
@@ -826,7 +827,7 @@ NodeStatus SelfLocate::tick()
             double distanceToLeftPenalty = sqrt(pow(observedPenaltyFieldX - leftPenaltyX, 2) + pow(observedPenaltyFieldY - 0.0, 2));
             
             // If the observed penalty point is too far from both actual penalty points, it's likely a misidentification
-            double validationThreshold = 1.5; // 1.5 meters tolerance
+            double validationThreshold = 3; // 1.5 meters tolerance
             if (distanceToRightPenalty > validationThreshold && distanceToLeftPenalty > validationThreshold) {
                 brain->log->log("locator/penalty_point", rerun::TextLog("Observed penalty point is too far from actual penalty points. Distance to right: " + 
                     to_string(distanceToRightPenalty) + "m, Distance to left: " + to_string(distanceToLeftPenalty) + "m. Likely misidentification, skipping localization."));
@@ -1346,4 +1347,193 @@ void GoalKeeperTrackAndAdjust::onHalted()
 {
     brain->client->setVelocity(0, 0, 0);
     brain->log->logToScreen("GoalKeeperTrackAndAdjust", "Goalkeeper tracking halted", 0xFFFF00FF);
+}
+
+// ------------------------------- FOLLOW TEAMMATE IMPLEMENTATION -------------------------------
+
+NodeStatus FollowTeammate::onStart()
+{
+    // Get parameters
+    getInput("follow_distance", _followDistance);
+    getInput("long_range_threshold", _longRangeThreshold);
+    getInput("turn_threshold", _turnThreshold);
+    getInput("vx_limit", _vxLimit);
+    getInput("vy_limit", _vyLimit);
+    getInput("vtheta_limit", _vthetaLimit);
+    getInput("position_tolerance", _positionTolerance);
+    getInput("angle_tolerance", _angleTolerance);
+
+    // Check if we have ball possession (if yes, we shouldn't follow)
+    if (brain->tree->getEntry<bool>("has_ball_possession")) {
+        brain->log->logToScreen("FollowTeammate", "I have ball possession, no need to follow", 0x00FF00FF);
+        return NodeStatus::FAILURE;
+    }
+
+    // Get possession player ID
+    _possessionPlayerId = brain->tree->getEntry<int>("possession_player_id");
+    if (_possessionPlayerId == -1) {
+        brain->log->logToScreen("FollowTeammate", "No robot has ball possession", 0xFFFF00FF);
+        return NodeStatus::FAILURE;
+    }
+
+    _hasValidTarget = false;
+    brain->log->logToScreen("FollowTeammate", 
+        format("Starting to follow robot %d", _possessionPlayerId), 0x00FFFFFF);
+    
+    return NodeStatus::RUNNING;
+}
+
+NodeStatus FollowTeammate::onRunning()
+{
+    // Check if we now have ball possession
+    if (brain->tree->getEntry<bool>("has_ball_possession")) {
+        brain->log->logToScreen("FollowTeammate", "I now have ball possession, stopping follow", 0x00FF00FF);
+        brain->client->setVelocity(0, 0, 0);
+        return NodeStatus::SUCCESS;
+    }
+
+    // Get current possession player ID
+    int currentPossessionId = brain->tree->getEntry<int>("possession_player_id");
+    if (currentPossessionId == -1) {
+        brain->log->logToScreen("FollowTeammate", "No robot has ball possession", 0xFFFF00FF);
+        return NodeStatus::FAILURE;
+    }
+
+    // Update possession player ID if changed
+    if (currentPossessionId != _possessionPlayerId) {
+        _possessionPlayerId = currentPossessionId;
+        brain->log->logToScreen("FollowTeammate", 
+            format("Ball possession changed, now following robot %d", _possessionPlayerId), 0x00FFFFFF);
+    }
+
+    // Get teammate positions
+    auto teammates = brain->communication->getTeammatePositions();
+    
+    // Find the teammate with ball possession
+    BrainCommunication::TeammateInfo possessionTeammate;
+    bool foundPossessionTeammate = false;
+    
+    for (const auto& teammate : teammates) {
+        if (teammate.playerId == _possessionPlayerId && teammate.hasValidPose) {
+            possessionTeammate = teammate;
+            foundPossessionTeammate = true;
+            break;
+        }
+    }
+    
+    if (!foundPossessionTeammate) {
+        brain->log->logToScreen("FollowTeammate", 
+            format("Cannot find position of robot %d with ball possession", _possessionPlayerId), 0xFFFF00FF);
+        return NodeStatus::FAILURE;
+    }
+
+    // Get ball position (we need this to calculate the optimal follow position)
+    double ballX = 0.0, ballY = 0.0;
+    bool ballPosKnown = false;
+    
+    if (brain->tree->getEntry<bool>("ball_location_known")) {
+        ballX = brain->data->ball.posToField.x;
+        ballY = brain->data->ball.posToField.y;
+        ballPosKnown = true;
+    } else {
+        // Try to get ball position from teammate information
+        auto teammateBallInfo = brain->communication->getTeammateBallInfo();
+        for (const auto& teammate : teammateBallInfo) {
+            if (teammate.ballDetected) {
+                ballX = teammate.ballPosX;
+                ballY = teammate.ballPosY;
+                ballPosKnown = true;
+                break;
+            }
+        }
+    }
+    
+    if (!ballPosKnown) {
+        brain->log->logToScreen("FollowTeammate", "Ball position unknown, cannot determine follow position", 0xFFFF00FF);
+        return NodeStatus::FAILURE;
+    }
+
+    // Calculate follow position
+    auto followPos = calculateFollowPosition(possessionTeammate.robotPoseX, possessionTeammate.robotPoseY, 
+                                           ballX, ballY, _followDistance);
+    _targetX = followPos.first;
+    _targetY = followPos.second;
+    
+    // Calculate target orientation to face the ball
+    _targetTheta = calculateBallViewingAngle(_targetX, _targetY, ballX, ballY);
+    _hasValidTarget = true;
+
+    // Check if we've reached the target position
+    double currentX = brain->data->robotPoseToField.x;
+    double currentY = brain->data->robotPoseToField.y;
+    double currentTheta = brain->data->robotPoseToField.theta;
+    
+    bool reachedPosition = (fabs(currentX - _targetX) < _positionTolerance) && 
+                          (fabs(currentY - _targetY) < _positionTolerance);
+    bool reachedAngle = fabs(toPInPI(currentTheta - _targetTheta)) < _angleTolerance;
+    
+    if (reachedPosition && reachedAngle) {
+        brain->log->logToScreen("FollowTeammate", 
+            format("Following robot %d at position (%.2f, %.2f)", _possessionPlayerId, _targetX, _targetY), 0x00FFFFFF);
+        brain->client->setVelocity(0, 0, 0);
+        return NodeStatus::RUNNING; // Keep following (continuous behavior)
+    }
+
+    // Move towards target position
+    brain->client->moveToPoseOnField(_targetX, _targetY, _targetTheta, 
+                                   _longRangeThreshold, _turnThreshold, 
+                                   _vxLimit, _vyLimit, _vthetaLimit,
+                                   _positionTolerance, _positionTolerance, _angleTolerance);
+    
+    return NodeStatus::RUNNING;
+}
+
+void FollowTeammate::onHalted()
+{
+    brain->client->setVelocity(0, 0, 0);
+    _hasValidTarget = false;
+    brain->log->logToScreen("FollowTeammate", "Follow teammate halted", 0xFFFF00FF);
+}
+
+std::pair<double, double> FollowTeammate::calculateFollowPosition(double teammateX, double teammateY, 
+                                                                double ballX, double ballY, double followDistance)
+{
+    // Calculate the angle from teammate to ball
+    double teammateToBallAngle = atan2(ballY - teammateY, ballX - teammateX);
+    
+    // Calculate two possible follow positions: left-rear and right-rear
+    double rearAngle = teammateToBallAngle + M_PI; // 180 degrees behind
+    double leftRearAngle = rearAngle + M_PI/3;     // 60 degrees to the left of rear
+    double rightRearAngle = rearAngle - M_PI/3;    // 60 degrees to the right of rear
+    
+    // Calculate positions
+    double leftRearX = teammateX + followDistance * cos(leftRearAngle);
+    double leftRearY = teammateY + followDistance * sin(leftRearAngle);
+    
+    double rightRearX = teammateX + followDistance * cos(rightRearAngle);
+    double rightRearY = teammateY + followDistance * sin(rightRearAngle);
+    
+    // Calculate distances from current position to both options
+    double currentX = brain->data->robotPoseToField.x;
+    double currentY = brain->data->robotPoseToField.y;
+    
+    double distToLeft = sqrt(pow(currentX - leftRearX, 2) + pow(currentY - leftRearY, 2));
+    double distToRight = sqrt(pow(currentX - rightRearX, 2) + pow(currentY - rightRearY, 2));
+    
+    // Choose the closer position
+    if (distToLeft < distToRight) {
+        brain->log->logToScreen("FollowTeammate", 
+            format("Following left-rear position (%.2f, %.2f)", leftRearX, leftRearY), 0x00FFFFFF);
+        return {leftRearX, leftRearY};
+    } else {
+        brain->log->logToScreen("FollowTeammate", 
+            format("Following right-rear position (%.2f, %.2f)", rightRearX, rightRearY), 0x00FFFFFF);
+        return {rightRearX, rightRearY};
+    }
+}
+
+double FollowTeammate::calculateBallViewingAngle(double robotX, double robotY, double ballX, double ballY)
+{
+    // Calculate angle to face the ball
+    return atan2(ballY - robotY, ballX - robotX);
 }

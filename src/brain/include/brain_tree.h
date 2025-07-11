@@ -594,6 +594,46 @@ private:
     bool _hasValidTarget;
 };
 
+// Follow the robot with ball possession
+class FollowTeammate : public StatefulActionNode
+{
+public:
+    FollowTeammate(const string &name, const NodeConfig &config, Brain *_brain) : StatefulActionNode(name, config), brain(_brain) {}
+
+    static PortsList providedPorts()
+    {
+        return {
+            InputPort<double>("follow_distance", 2.0, "Distance to maintain from the teammate"),
+            InputPort<double>("long_range_threshold", 3.0, "When distance to target exceeds this value, prioritize moving towards it"),
+            InputPort<double>("turn_threshold", 0.4, "For long distances, if angle to target exceeds this threshold, turn towards target first"),
+            InputPort<double>("vx_limit", 0.4, "X direction velocity limit"),
+            InputPort<double>("vy_limit", 0.3, "Y direction velocity limit"),
+            InputPort<double>("vtheta_limit", 0.8, "Angular velocity limit"),
+            InputPort<double>("position_tolerance", 0.3, "Position tolerance for considering target reached"),
+            InputPort<double>("angle_tolerance", 0.2, "Angle tolerance for considering target reached"),
+        };
+    }
+
+    NodeStatus onStart() override;
+    
+    NodeStatus onRunning() override;
+    
+    void onHalted() override;
+
+private:
+    Brain *brain;
+    double _targetX, _targetY, _targetTheta;
+    double _followDistance, _longRangeThreshold, _turnThreshold;
+    double _vxLimit, _vyLimit, _vthetaLimit;
+    double _positionTolerance, _angleTolerance;
+    int _possessionPlayerId;
+    bool _hasValidTarget;
+    
+    // Helper functions
+    std::pair<double, double> calculateFollowPosition(double teammateX, double teammateY, double ballX, double ballY, double followDistance);
+    double calculateBallViewingAngle(double robotX, double robotY, double ballX, double ballY);
+};
+
 // ------------------------------- FOR DEBUG -------------------------------
 class PrintMsg : public SyncActionNode
 {

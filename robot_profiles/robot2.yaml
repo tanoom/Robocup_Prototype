@@ -4,12 +4,12 @@ brain:
     field_type: adult_size
     player_id: 1
     player_role: striker
-    player_start_pos: left
+    player_start_pos: right
     team_id: 31
   rerunLog:
     enable: true
     img_interval: 1
-    server_addr: 192.168.5.57:9876
+    server_addr: 192.168.5.23:9876
   robot:
     odom_factor: 1.2
     robot_height: 1.0
