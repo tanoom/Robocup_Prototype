@@ -42,7 +42,6 @@ void BrainTree::init()
     REGISTER_BUILDER(WaveHand)
     REGISTER_BUILDER(GoBackInField)
     REGISTER_BUILDER(TurnOnSpot)
-    REGISTER_BUILDER(NewKick)
     REGISTER_BUILDER(GoToTeammateBall)
 
     // GoalKeeper Nodes
@@ -1001,30 +1000,6 @@ NodeStatus TurnOnSpot::onRunning()
     return NodeStatus::RUNNING;
 }
 
-NodeStatus NewKick::onStart()
-{
-    brain->log->log("debug/newKick", rerun::TextLog("start"));
-    _startTime = brain->get_clock()->now();
-    auto res_kick = brain->client->kickBall(2.0, 0.0);
-    brain->log->log("debug/newKick", rerun::TextLog(format(
-        "kick res: %d",
-        res_kick
-    )));
-    return NodeStatus::RUNNING;
-}
-
-NodeStatus NewKick::onRunning()
-{
-    double msecs;
-    getInput("msecs", msecs);
-    if (brain->msecsSince(_startTime) > msecs) {
-        return NodeStatus::SUCCESS;
-    }
-    return NodeStatus::RUNNING;
-}
-
-void NewKick::onHalted() {
-}
 
 NodeStatus GoToTeammateBall::onStart()
 {
