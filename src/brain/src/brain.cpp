@@ -120,33 +120,33 @@ void Brain::tick()
 {
     // Record loop start time
     loopStartTime = get_clock()->now();
-    
+
     updateMemory();
     updateCollaboration();
     tree->tick();
-    
+
     // Calculate loop execution time
     auto loopEndTime = get_clock()->now();
     double currentLoopTime = (loopEndTime - loopStartTime).nanoseconds() / 1e6; // Convert to milliseconds
-    
+
     // Update statistics
     totalLoopTime += currentLoopTime;
     loopCount++;
-    
+
     if (currentLoopTime > maxLoopTime) {
         maxLoopTime = currentLoopTime;
     }
     if (currentLoopTime < minLoopTime) {
         minLoopTime = currentLoopTime;
     }
-    
+
     // Output statistics every 1000 loops (approximately every 1-10 seconds depending on loop frequency)
     static int outputCounter = 0;
     outputCounter++;
     if (outputCounter % 1000 == 0) {
         double avgLoopTime = totalLoopTime / loopCount;
         double loopFrequency = 1000.0 / avgLoopTime; // Hz
-        
+
         prtDebug(format("=== Loop 时间统计 (最近 %d 次循环) ===", loopCount));
         prtDebug(format("当前循环时间: %.2f ms", currentLoopTime));
         prtDebug(format("平均循环时间: %.2f ms", avgLoopTime));
@@ -154,7 +154,7 @@ void Brain::tick()
         prtDebug(format("最小循环时间: %.2f ms", minLoopTime));
         prtDebug(format("循环频率: %.1f Hz", loopFrequency));
         prtDebug(format("总循环次数: %d", loopCount));
-        
+
         // Reset statistics for next measurement period
         totalLoopTime = 0.0;
         maxLoopTime = 0.0;
@@ -167,24 +167,24 @@ void Brain::tick()
 void Brain::updateCollaboration() {
     // Check if enough time has passed since last collaboration update (100ms interval)
     auto currentTime = get_clock()->now();
-    
+
     // Initialize the timer on first call
     static bool firstCall = true;
     if (firstCall) {
         lastCollaborationUpdateTime = currentTime;
         firstCall = false;
     }
-    
+
     // Check if 100ms have passed since last update
     auto timeSinceLastUpdate = (currentTime - lastCollaborationUpdateTime).nanoseconds() / 1e6; // Convert to milliseconds
     if (timeSinceLastUpdate < 100.0) {
         // Not enough time passed, skip this update
         return;
     }
-    
+
     // Update the timer
     lastCollaborationUpdateTime = currentTime;
-    
+
     // Only process collaboration if ball is detected
     if (!data->ballDetected) {
         static int no_ball_counter = 0;
@@ -193,18 +193,18 @@ void Brain::updateCollaboration() {
         }
         no_ball_counter++;
     }
-    
+
     // Calculate our cost to reach the ball
     calculateBallCost();
-    
+
     // Debug: 输出当前状态
     static int collab_counter = 0;
     if (collab_counter % 10 == 0) { // 调整为每10次输出一次，因为现在更新频率降低了
-        prtDebug(format("协作更新: role='%s', playerId=%d, ballCost=%.2f, possessionPlayerId=%d (100ms timer)", 
+        prtDebug(format("协作更新: role='%s', playerId=%d, ballCost=%.2f, possessionPlayerId=%d (100ms timer)",
             config->collaborationRole.c_str(), config->playerId, data->ballCost, data->possessionPlayerId));
     }
     collab_counter++;
-    
+
     // Process collaboration based on our role
     if (config->collaborationRole == "master") {
         processMasterDecision();
@@ -216,7 +216,7 @@ void Brain::updateCollaboration() {
 void Brain::calculateBallCost() {
     Point2D ballPos;
     bool ballPosFound = false;
-    
+
     // 首先检查自己是否看到球
     if (data->ballDetected) {
         ballPos.x = data->ball.posToField.x;
@@ -229,33 +229,33 @@ void Brain::calculateBallCost() {
         auto teammatesBallInfo = communication->getTeammateBallInfo();
         auto endTime = get_clock()->now();
         double commTime = (endTime - startTime).nanoseconds() / 1e6; // Convert to milliseconds
-        
+
         static double totalBallInfoTime = 0.0;
         static int ballInfoCallCount = 0;
         static double maxBallInfoTime = 0.0;
         totalBallInfoTime += commTime;
         ballInfoCallCount++;
         if (commTime > maxBallInfoTime) maxBallInfoTime = commTime;
-        
+
         if (ballInfoCallCount % 100 == 0) {
-            prtDebug(format("getTeammateBallInfo() 时间统计: 当前=%.3fms, 平均=%.3fms, 最大=%.3fms, 队友数=%zu", 
+            prtDebug(format("getTeammateBallInfo() 时间统计: 当前=%.3fms, 平均=%.3fms, 最大=%.3fms, 队友数=%zu",
                 commTime, totalBallInfoTime/ballInfoCallCount, maxBallInfoTime, teammatesBallInfo.size()));
         }
-        
+
         if (!teammatesBallInfo.empty()) {
             // 找到距离自己最近的球位置
             double minDistance = std::numeric_limits<double>::infinity();
             Point2D closestBallPos;
             int closestTeammateId = -1;
-            
+
             for (const auto& teammate : teammatesBallInfo) {
                 if (teammate.ballDetected) {
                     // 计算球到自己的距离
                     double distance = std::sqrt(
-                        std::pow(teammate.ballPosX - data->robotPoseToField.x, 2) + 
+                        std::pow(teammate.ballPosX - data->robotPoseToField.x, 2) +
                         std::pow(teammate.ballPosY - data->robotPoseToField.y, 2)
                     );
-                    
+
                     if (distance < minDistance) {
                         minDistance = distance;
                         closestBallPos.x = teammate.ballPosX;
@@ -265,22 +265,22 @@ void Brain::calculateBallCost() {
                     }
                 }
             }
-            
+
             if (ballPosFound) {
                 ballPos = closestBallPos;
-                prtDebug(format("使用队友 %d 检测到的球位置计算成本 (距离: %.2fm)", 
+                prtDebug(format("使用队友 %d 检测到的球位置计算成本 (距离: %.2fm)",
                     closestTeammateId, minDistance));
             }
         }
     }
-    
+
     // 如果所有人都没看到球，返回无穷
     if (!ballPosFound) {
         data->ballCost = std::numeric_limits<double>::infinity();
         prtDebug("所有机器人都没检测到球，成本设为无穷");
         return;
     }
-    
+
     // 使用选定的球位置计算成本
     Pose2D robotPose = data->robotPoseToField;
     data->ballCost = strategy->calculateCostFunction(robotPose, ballPos);
@@ -290,47 +290,47 @@ void Brain::calculateBallCost() {
 void Brain::processMasterDecision() {
     // Collect cost information from all robots (including self)
     std::vector<std::pair<int, double>> robotCosts;
-    
+
     // Add our own cost
     robotCosts.push_back({config->playerId, data->ballCost});
-    
+
     // Add teammates' costs
     auto startTime = get_clock()->now();
     auto teammates = communication->getTeammateCollaborationInfo();
     auto endTime = get_clock()->now();
     double commTime = (endTime - startTime).nanoseconds() / 1e6; // Convert to milliseconds
-    
+
     static double totalMasterCollabTime = 0.0;
     static int masterCollabCallCount = 0;
     static double maxMasterCollabTime = 0.0;
     totalMasterCollabTime += commTime;
     masterCollabCallCount++;
     if (commTime > maxMasterCollabTime) maxMasterCollabTime = commTime;
-    
+
     if (masterCollabCallCount % 50 == 0) {
-        prtDebug(format("Master getTeammateCollaborationInfo() 时间统计: 当前=%.3fms, 平均=%.3fms, 最大=%.3fms, 队友数=%zu", 
+        prtDebug(format("Master getTeammateCollaborationInfo() 时间统计: 当前=%.3fms, 平均=%.3fms, 最大=%.3fms, 队友数=%zu",
             commTime, totalMasterCollabTime/masterCollabCallCount, maxMasterCollabTime, teammates.size()));
     }
-    
-    prtDebug(format("Master收集信息: 自己(ID=%d, cost=%.2f), 队友数量=%zu", 
+
+    prtDebug(format("Master收集信息: 自己(ID=%d, cost=%.2f), 队友数量=%zu",
         config->playerId, data->ballCost, teammates.size()));
-    
+
     for (const auto& teammate : teammates) {
         robotCosts.push_back({teammate.playerId, teammate.ballCost});
         prtDebug(format("队友信息: ID=%d, cost=%.2f", teammate.playerId, teammate.ballCost));
     }
-    
+
     // Find robot with minimum cost
     int bestRobotId = config->playerId;
     double minCost = data->ballCost;
-    
+
     for (const auto& robotCost : robotCosts) {
         if (robotCost.second < minCost) {
             minCost = robotCost.second;
             bestRobotId = robotCost.first;
         }
     }
-    
+
     // Check if all costs are infinite (no one can see the ball)
     if (std::isinf(minCost)) {
         // No one can see the ball, no possession assignment
@@ -343,9 +343,9 @@ void Brain::processMasterDecision() {
         int oldPossessionId = data->possessionPlayerId;
         data->possessionPlayerId = bestRobotId;
         data->hasBallPossession = (bestRobotId == config->playerId);
-        
+
         // Log decision
-        prtDebug(format("Master决策: 机器人 %d 应该占据球 (cost=%.2f), 之前分配给: %d", 
+        prtDebug(format("Master决策: 机器人 %d 应该占据球 (cost=%.2f), 之前分配给: %d",
             bestRobotId, minCost, oldPossessionId));
     }
 }
@@ -356,26 +356,26 @@ void Brain::processSlaveUpdates() {
     auto teammates = communication->getTeammateCollaborationInfo();
     auto endTime = get_clock()->now();
     double commTime = (endTime - startTime).nanoseconds() / 1e6; // Convert to milliseconds
-    
+
     static double totalSlaveCollabTime = 0.0;
     static int slaveCollabCallCount = 0;
     static double maxSlaveCollabTime = 0.0;
     totalSlaveCollabTime += commTime;
     slaveCollabCallCount++;
     if (commTime > maxSlaveCollabTime) maxSlaveCollabTime = commTime;
-    
+
     if (slaveCollabCallCount % 50 == 0) {
-        prtDebug(format("Slave getTeammateCollaborationInfo() 时间统计: 当前=%.3fms, 平均=%.3fms, 最大=%.3fms, 队友数=%zu", 
+        prtDebug(format("Slave getTeammateCollaborationInfo() 时间统计: 当前=%.3fms, 平均=%.3fms, 最大=%.3fms, 队友数=%zu",
             commTime, totalSlaveCollabTime/slaveCollabCallCount, maxSlaveCollabTime, teammates.size()));
     }
-    
+
     prtDebug(format("Slave更新: 收到%zu个队友信息", teammates.size()));
-    
+
     bool foundMaster = false;
     for (const auto& teammate : teammates) {
-        prtDebug(format("队友信息: ID=%d, masterID=%d, possessionID=%d", 
+        prtDebug(format("队友信息: ID=%d, masterID=%d, possessionID=%d",
             teammate.playerId, teammate.masterPlayerId, teammate.possessionPlayerId));
-        
+
         // Check if this teammate is the master
         if (teammate.masterPlayerId == teammate.playerId) {
             foundMaster = true;
@@ -383,16 +383,16 @@ void Brain::processSlaveUpdates() {
             // Update our possession status based on master's decision
             data->possessionPlayerId = teammate.possessionPlayerId;
             data->hasBallPossession = (teammate.possessionPlayerId == config->playerId);
-            prtDebug(format("从Master(ID=%d)收到决策: possession从%d更新为%d", 
+            prtDebug(format("从Master(ID=%d)收到决策: possession从%d更新为%d",
                 teammate.playerId, oldPossessionId, teammate.possessionPlayerId));
             break;
         }
     }
-    
+
     if (!foundMaster && teammates.size() > 0) {
         prtDebug("警告: 没有找到Master机器人的信息");
     }
-    
+
     // Log possession status (movement will be handled by behavior tree)
     static int status_counter = 0;
     if (status_counter % 100 == 0) { // 每100次输出一次状态
@@ -409,13 +409,13 @@ void Brain::updateMemory()
 {
     // Update current time for behavior tree scripts
     tree->setEntry<double>("current_time", get_clock()->now().seconds());
-    
+
     // Update collaboration-related blackboard entries
     tree->setEntry<bool>("has_ball_possession", data->hasBallPossession);
     tree->setEntry<int>("possession_player_id", data->possessionPlayerId);
     tree->setEntry<double>("ball_cost", data->ballCost);
     tree->setEntry<bool>("is_master_robot", config->collaborationRole == "master");
-    
+
     updateBallMemory();
 
     static Point ballPos;
@@ -436,6 +436,7 @@ void Brain::updateMemory()
         }
     }
 }
+
 
 void Brain::updateBallMemory()
 {
@@ -545,11 +546,11 @@ double Brain::msecsSince(rclcpp::Time time)
 bool Brain::executePenaltyPointLocalize()
 {
     auto markers = data->getMarkers();
-    
+
     // Check if we can see a penalty point marker within 5 meters
     FieldMarker penaltyMarker;
     bool foundPenaltyPoint = false;
-    
+
     // Find a penalty point marker within 5 meters
     for (const auto& marker : markers) {
         if (marker.type == 'P') {
@@ -560,52 +561,52 @@ bool Brain::executePenaltyPointLocalize()
             }
         }
     }
-    
+
     if (foundPenaltyPoint) {
         // Calculate robot position based on the penalty point
         auto fd = config->fieldDimensions;
-        
+
         // Penalty point positions in field coordinates:
         // Right penalty point: (fd.length / 2 - fd.penaltyDist, 0.0)
         // Left penalty point: (-fd.length / 2 + fd.penaltyDist, 0.0)
         double rightPenaltyX = fd.length / 2 - fd.penaltyDist;
         double leftPenaltyX = -fd.length / 2 + fd.penaltyDist;
-        
+
         // Determine which penalty point we're seeing based on the observed penalty point position
         // Use the robot's current orientation and penalty point relative position to determine which side
         double currentTheta = data->robotPoseToField.theta;
         double observedX = penaltyMarker.x;
         double observedY = penaltyMarker.y;
-        
+
         // Transform the observed penalty point to field coordinates using rough position estimate
         double roughFieldX = data->robotPoseToField.x + (cos(currentTheta) * observedX - sin(currentTheta) * observedY);
-        
+
         // Determine if it's right or left penalty point based on the rough field position
         bool isRightPenalty = (roughFieldX > 0);
-        
+
         // Get the actual penalty point position in field coordinates
         double penaltyFieldX = isRightPenalty ? rightPenaltyX : leftPenaltyX;
         double penaltyFieldY = 0.0;
-        
+
         // Calculate robot position: penalty_field = robot_pose + R * penalty_robot
         // where R is rotation matrix and penalty_robot is the observed marker position
         double distance = sqrt(observedX * observedX + observedY * observedY);
-        
+
         // Robot position = penalty_field - R * penalty_robot
         double robotX = penaltyFieldX - (cos(currentTheta) * observedX - sin(currentTheta) * observedY);
         double robotY = penaltyFieldY - (sin(currentTheta) * observedX + cos(currentTheta) * observedY);
-        
+
         // Use current theta with small adjustment tolerance
         double robotTheta = currentTheta;
-        
+
         // Direct localization without using particle filter
         calibrateOdom(robotX, robotY, robotTheta);
         tree->setEntry<bool>("odom_calibrated", true);
         data->lastSuccessfulLocalizeTime = get_clock()->now();
-        
-        prtDebug("手柄触发罚球点定位成功: " + to_string(robotX) + " " + to_string(robotY) + " " + to_string(rad2deg(robotTheta)) + 
+
+        prtDebug("手柄触发罚球点定位成功: " + to_string(robotX) + " " + to_string(robotY) + " " + to_string(rad2deg(robotTheta)) +
                  " penalty: " + (isRightPenalty ? "right" : "left") + " dist: " + to_string(distance));
-        
+
         return true;
     }
     else {
@@ -630,7 +631,7 @@ void Brain::joystickCallback(const booster_interface::msg::RemoteControllerState
             tree->setEntry<bool>("B_pressed", false);
             prtDebug("B is released");
         }
-        
+
         // 添加 START 按键处理 - 测试语音客户端
         if (joy.start)
         {
@@ -855,12 +856,12 @@ void Brain::odometerCallback(const booster_interface::msg::Odometer &msg)
              rerun::Points2D({{data->robotPoseToField.x, -data->robotPoseToField.y}, {data->robotPoseToField.x + 0.1 * cos(data->robotPoseToField.theta), -data->robotPoseToField.y - 0.1 * sin(data->robotPoseToField.theta)}})
                  .with_radii({0.2, 0.1})
                  .with_colors({0xFF6666FF, 0xFF0000FF}));
-    
+
     // Draw penalty points on the field
     auto fd = config->fieldDimensions;
     double rightPenaltyX = fd.length / 2 - fd.penaltyDist;
     double leftPenaltyX = -fd.length / 2 + fd.penaltyDist;
-    
+
     std::vector<rerun::Position2D> penaltyPoints = {
         rerun::Position2D(rightPenaltyX, 0.0f),  // Right penalty point
         rerun::Position2D(leftPenaltyX, 0.0f)    // Left penalty point
@@ -873,8 +874,8 @@ void Brain::odometerCallback(const booster_interface::msg::Odometer &msg)
         rerun::components::Text("Right Penalty"),
         rerun::components::Text("Left Penalty")
     };
-    
-    log->log("field/penalty_points", 
+
+    log->log("field/penalty_points",
         rerun::Points2D(penaltyPoints)
             .with_colors(penaltyColors)
             .with_radii({0.1f, 0.1f})
@@ -936,7 +937,7 @@ void Brain::depthImageCallback(const sensor_msgs::msg::Image &msg)
     {
         // 处理深度图像
         cv::Mat depthImage;
-        
+
         // 检查图像编码格式
         if (msg.encoding == "16UC1" || msg.encoding == "mono16")
         {
@@ -1031,7 +1032,7 @@ void Brain::headPoseCallback(const geometry_msgs::msg::Pose &msg)
 
 void Brain::recoveryStateCallback(const booster_interface::msg::RawBytesMsg &msg)
 {
-    // uint8_t state; // IS_READY = 0, IS_FALLING = 1, HAS_FALLEN = 2, IS_GETTING_UP = 3,  
+    // uint8_t state; // IS_READY = 0, IS_FALLING = 1, HAS_FALLEN = 2, IS_GETTING_UP = 3,
     // uint8_t is_recovery_available; // 1 for available, 0 for not available
     // 使用 RobotRecoveryState 结构，将msg里面的msg转换为RobotRecoveryState
     try
@@ -1049,7 +1050,7 @@ void Brain::recoveryStateCallback(const booster_interface::msg::RawBytesMsg &msg
         this->data->recoveryState = recoveryStateMap[static_cast<int>(recoveryState.state)];
         this->data->isRecoveryAvailable = static_cast<bool>(recoveryState.is_recovery_available);
         this->data->currentRobotModeIndex = static_cast<int>(recoveryState.current_planner_index);
-        
+
         // cout << "recoveryState: " << static_cast<int>(recoveryState.state) << endl;
         // cout << "recovery is available: " << static_cast<int>(recoveryState.is_recovery_available) << endl;
         // cout << "current planner idx: " << static_cast<int>(recoveryState.current_planner_index) << endl;

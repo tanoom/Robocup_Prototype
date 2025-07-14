@@ -89,13 +89,13 @@ void BrainTree::initEntry()
 
     setEntry<bool>("we_just_scored", false);
     setEntry<bool>("wait_for_opponent_kickoff", false);
-    
+
     // Penalty point localization related
     setEntry<bool>("trigger_penalty_point_localize", false);
-    
+
     // Time related
     setEntry<double>("current_time", 0.0);
-    
+
     // Collaboration related
     setEntry<bool>("has_ball_possession", false);
     setEntry<int>("possession_player_id", -1);
@@ -361,24 +361,24 @@ NodeStatus Adjust::tick()
     // } else if (angleDiff > M_PI/8) {
     //     speedScale = 0.3;      // Move moderately fast
     // }
-    
+
     std::cout << "[DEBUG] speedScale: " << speedScale << ", angleDiff: " << angleDiff << std::endl;
-    
+
     double s = speedScale;  // Apply speed scaling to base movement speed
     double r = 0.8;
-    
+
     // Base circling movement
     vx = -s * dir * sin(ballYaw);
     vy = s * dir * cos(ballYaw);
 
     std::cout << "[DEBUG] vx: " << vx << ", vy: " << vy << std::endl;
-    
+
     // Maintain distance to maxRange
     if (ballRange > maxRange)
         vx += 0.1;
     if (ballRange < maxRange)
         vx -= 0.1;
-    
+
     // Continuous turning control
     vtheta = (ballYaw - dir * s) / r;
 
@@ -448,13 +448,13 @@ NodeStatus CheckAndStandUp::tick()
         brain->log->log("recovery", rerun::TextLog("reset recovery"));
         return NodeStatus::SUCCESS;
     }
-    
+
     if (brain->data->needManualRelocate)
     {
         brain->log->log("recovery", rerun::TextLog("need manual relocate"));
         return NodeStatus::FAILURE;
     }
-    
+
     if (brain->data->recoveryState == RobotRecoveryState::HAS_FALLEN &&
         // brain->data->isRecoveryAvailable && // If fallen, directly try RL stand up (no need to care about recoveryAvailable)
         brain->data->currentRobotModeIndex != 1 && // not in prepare
@@ -515,7 +515,7 @@ NodeStatus RotateForRelocate::onRunning()
     getInput("vyaw_limit", vyaw_limit);
     int max_msec_locate;
     getInput("max_msec_locate", max_msec_locate);
-    
+
     brain->client->moveHead(0.4, 0.0);
     brain->client->setVelocity(0, 0, vyaw_limit);
 
@@ -740,8 +740,8 @@ NodeStatus SelfLocate::tick()
         yMax = min(brain->config->fieldDimensions.width / 2, brain->data->robotPoseToField.y + maxDrift);
         thetaMin = brain->data->robotPoseToField.theta - M_PI / 18;
         thetaMax = brain->data->robotPoseToField.theta + M_PI / 18;
-    } 
-    else if (mode == "fall_recovery") 
+    }
+    else if (mode == "fall_recovery")
     {
         int msec = static_cast<int>(brain->msecsSince(brain->data->lastSuccessfulLocalizeTime));
         double maxDriftSpeed = 0.1;                      // m/s
@@ -759,23 +759,23 @@ NodeStatus SelfLocate::tick()
         // Add call interval limit to prevent frequent calls causing localization to opposite half field
         static rclcpp::Time lastPenaltyLocalizeTime = rclcpp::Time(0LL, RCL_CLOCK_UNINITIALIZED);
         auto currentTime = brain->get_clock()->now();
-        
+
         // 如果是第一次调用，直接初始化时间
         if (lastPenaltyLocalizeTime.get_clock_type() == RCL_CLOCK_UNINITIALIZED) {
             lastPenaltyLocalizeTime = currentTime;
         }
-        
+
         auto elapsed = (currentTime - lastPenaltyLocalizeTime).seconds();
-        
+
         if (elapsed < 3.0) { // 3秒内不允许重复调用
             prtDebug("penalty_point_localize 调用过于频繁，距离上次调用仅 " + to_string(elapsed) + " 秒，需要等待 3 秒间隔");
             return NodeStatus::SUCCESS; // 直接返回成功，不执行定位
         }
-        
+
         // Check if we can see a penalty point marker within 5 meters
         FieldMarker penaltyMarker;
         bool foundPenaltyPoint = false;
-        
+
         // Find a penalty point marker within 5 meters
         for (const auto& marker : markers) {
             if (marker.type == 'P') {
@@ -788,77 +788,77 @@ NodeStatus SelfLocate::tick()
                 }
             }
         }
-        
+
         if (foundPenaltyPoint) {
             // 更新最后调用时间
             lastPenaltyLocalizeTime = currentTime;
-            
+
             // Calculate robot position based on the penalty point
             auto fd = brain->config->fieldDimensions;
-            
+
             // Penalty point positions in field coordinates:
             // Right penalty point: (fd.length / 2 - fd.penaltyDist, 0.0)
             // Left penalty point: (-fd.length / 2 + fd.penaltyDist, 0.0)
             double rightPenaltyX = fd.length / 2 - fd.penaltyDist;
             double leftPenaltyX = -fd.length / 2 + fd.penaltyDist;
-            
+
             // Determine which penalty point we're seeing based on the observed penalty point position
             // Use the robot's current orientation and penalty point relative position to determine which side
             double currentTheta = brain->data->robotPoseToField.theta;
             double observedX = penaltyMarker.x;
             double observedY = penaltyMarker.y;
-            
+
             // Transform the observed penalty point to field coordinates using rough position estimate
             double roughFieldX = brain->data->robotPoseToField.x + (cos(currentTheta) * observedX - sin(currentTheta) * observedY);
-            
+
             // Determine if it's right or left penalty point based on the rough field position
             bool isRightPenalty = (roughFieldX > 0);
-            
+
             // Get the actual penalty point position in field coordinates
             double penaltyFieldX = isRightPenalty ? rightPenaltyX : leftPenaltyX;
             double penaltyFieldY = 0.0;
-            
+
             // Calculate the observed penalty point position in field coordinates for validation
             double observedPenaltyFieldX = brain->data->robotPoseToField.x + (cos(currentTheta) * observedX - sin(currentTheta) * observedY);
             double observedPenaltyFieldY = brain->data->robotPoseToField.y + (sin(currentTheta) * observedX + cos(currentTheta) * observedY);
-            
+
             // Validate if the observed penalty point is actually near the expected penalty point positions
             double distanceToRightPenalty = sqrt(pow(observedPenaltyFieldX - rightPenaltyX, 2) + pow(observedPenaltyFieldY - 0.0, 2));
             double distanceToLeftPenalty = sqrt(pow(observedPenaltyFieldX - leftPenaltyX, 2) + pow(observedPenaltyFieldY - 0.0, 2));
-            
+
             // If the observed penalty point is too far from both actual penalty points, it's likely a misidentification
             double validationThreshold = 3; // 1.5 meters tolerance
             if (distanceToRightPenalty > validationThreshold && distanceToLeftPenalty > validationThreshold) {
-                brain->log->log("locator/penalty_point", rerun::TextLog("Observed penalty point is too far from actual penalty points. Distance to right: " + 
+                brain->log->log("locator/penalty_point", rerun::TextLog("Observed penalty point is too far from actual penalty points. Distance to right: " +
                     to_string(distanceToRightPenalty) + "m, Distance to left: " + to_string(distanceToLeftPenalty) + "m. Likely misidentification, skipping localization."));
-                prtDebug("penalty point validation failed: observed at (" + to_string(observedPenaltyFieldX) + ", " + to_string(observedPenaltyFieldY) + 
+                prtDebug("penalty point validation failed: observed at (" + to_string(observedPenaltyFieldX) + ", " + to_string(observedPenaltyFieldY) +
                          ") is too far from actual penalty points");
                 return NodeStatus::SUCCESS;
             }
-            
+
             // Calculate robot position: penalty_field = robot_pose + R * penalty_robot
             // where R is rotation matrix and penalty_robot is the observed marker position
             double distance = sqrt(observedX * observedX + observedY * observedY);
-            
+
             // Robot position = penalty_field - R * penalty_robot
             double robotX = penaltyFieldX - (cos(currentTheta) * observedX - sin(currentTheta) * observedY);
             double robotY = penaltyFieldY - (sin(currentTheta) * observedX + cos(currentTheta) * observedY);
-            
+
             // Use current theta with small adjustment tolerance
             double robotTheta = currentTheta;
-            
+
             brain->log->log("locator/penalty_point", rerun::TextLog("Robot Pose: (" + to_string(robotX) + ", " + to_string(robotY) + ", " + to_string(rad2deg(robotTheta)) + "°)"));
-            
+
             // Direct localization without using particle filter
             brain->calibrateOdom(robotX, robotY, robotTheta);
             brain->tree->setEntry<bool>("odom_calibrated", true);
             brain->data->lastSuccessfulLocalizeTime = brain->get_clock()->now();
-            
-            
+
+
             brain->log->log("locator/penalty_point", rerun::TextLog("Succes Locate! use" + string(isRightPenalty ? "Right" : "Left") + "Penalty Point"));
-            prtDebug("penalty point localize success: " + to_string(robotX) + " " + to_string(robotY) + " " + to_string(rad2deg(robotTheta)) + 
+            prtDebug("penalty point localize success: " + to_string(robotX) + " " + to_string(robotY) + " " + to_string(rad2deg(robotTheta)) +
                      " penalty: " + (isRightPenalty ? "right" : "left"));
-            
+
         }
         return NodeStatus::SUCCESS;
     }
@@ -938,8 +938,8 @@ NodeStatus GoBackInField::tick()
 {
     double valve;
     getInput("valve", valve);
-    double vx = 0; 
-    double vy = 0; 
+    double vx = 0;
+    double vy = 0;
     double dir = 0;
     auto fd = brain->config->fieldDimensions;
     if (brain->data->robotPoseToField.x > fd.length / 2.0 - valve) dir = - M_PI;
@@ -996,7 +996,7 @@ NodeStatus TurnOnSpot::onRunning()
         return NodeStatus::SUCCESS;
     }
 
-    // else 
+    // else
     brain->client->setVelocity(0, 0, (_angle - _cumAngle)*2);
     return NodeStatus::RUNNING;
 }
@@ -1010,14 +1010,14 @@ NodeStatus GoToTeammateBall::onStart()
         brain->log->logToScreen("GoToTeammateBall", "Can see ball myself, no need to go to teammate position", 0x00FF00FF);
         return NodeStatus::FAILURE;
     }
-    
+
     // 2. Get teammate ball information
     auto teammateBallInfo = brain->communication->getTeammateBallInfo();
-    
+
     // 3. Find teammate who can see the ball
     BrainCommunication::TeammateInfo selectedTeammate;
     bool foundTeammateWithBall = false;
-    
+
     for (const auto& teammate : teammateBallInfo) {
         if (teammate.ballDetected) {
             selectedTeammate = teammate;
@@ -1025,13 +1025,13 @@ NodeStatus GoToTeammateBall::onStart()
             break; // Select the first teammate who sees the ball
         }
     }
-    
+
     // 4. If no teammate sees the ball, return failure
     if (!foundTeammateWithBall) {
         brain->log->logToScreen("GoToTeammateBall", "No teammate can see the ball", 0xFFFF00FF);
         return NodeStatus::FAILURE;
     }
-    
+
     // 5. Get parameters
     getInput("long_range_threshold", _longRangeThreshold);
     getInput("turn_threshold", _turnThreshold);
@@ -1041,19 +1041,19 @@ NodeStatus GoToTeammateBall::onStart()
     getInput("x_tolerance", _xTolerance);
     getInput("y_tolerance", _yTolerance);
     getInput("theta_tolerance", _thetaTolerance);
-    
+
     // 6. Store target position (ball position seen by teammate)
     _targetX = selectedTeammate.ballPosX;
     _targetY = selectedTeammate.ballPosY;
     _targetTheta = brain->data->robotPoseToField.theta; // Keep current orientation
     _selectedTeammateId = selectedTeammate.playerId;
     _hasValidTarget = true;
-    
+
     // 7. Log information
-    brain->log->logToScreen("GoToTeammateBall", 
-        format("Starting to go to ball position seen by teammate %d: (%.2f, %.2f)", 
+    brain->log->logToScreen("GoToTeammateBall",
+        format("Starting to go to ball position seen by teammate %d: (%.2f, %.2f)",
                _selectedTeammateId, _targetX, _targetY), 0x00FFFFFF);
-    
+
     return NodeStatus::RUNNING;
 }
 
@@ -1065,35 +1065,35 @@ NodeStatus GoToTeammateBall::onRunning()
         brain->client->setVelocity(0, 0, 0);
         return NodeStatus::SUCCESS;
     }
-    
+
     // 2. Check if we don't have a valid target
     if (!_hasValidTarget) {
         brain->log->logToScreen("GoToTeammateBall", "No valid target", 0xFFFF00FF);
         return NodeStatus::FAILURE;
     }
-    
+
     // 3. Check if we have reached the target position
     double currentX = brain->data->robotPoseToField.x;
     double currentY = brain->data->robotPoseToField.y;
     double currentTheta = brain->data->robotPoseToField.theta;
-    
+
     bool reachedX = fabs(currentX - _targetX) < _xTolerance;
     bool reachedY = fabs(currentY - _targetY) < _yTolerance;
     bool reachedTheta = fabs(toPInPI(currentTheta - _targetTheta)) < _thetaTolerance;
-    
+
     if (reachedX && reachedY && reachedTheta) {
-        brain->log->logToScreen("GoToTeammateBall", 
+        brain->log->logToScreen("GoToTeammateBall",
             format("Reached teammate ball position (%.2f, %.2f)", _targetX, _targetY), 0x00FF00FF);
         brain->client->setVelocity(0, 0, 0);
         return NodeStatus::SUCCESS;
     }
-    
+
     // 4. Continue moving towards target position
-    brain->client->moveToPoseOnField(_targetX, _targetY, _targetTheta, 
-                                   _longRangeThreshold, _turnThreshold, 
+    brain->client->moveToPoseOnField(_targetX, _targetY, _targetTheta,
+                                   _longRangeThreshold, _turnThreshold,
                                    _vxLimit, _vyLimit, _vthetaLimit,
                                    _xTolerance, _yTolerance, _thetaTolerance);
-    
+
     return NodeStatus::RUNNING;
 }
 
@@ -1132,7 +1132,7 @@ NodeStatus GoalKeeperPosition::onStart()
     getInput("angle_tolerance", _angleTolerance);
 
     brain->log->logToScreen("GoalKeeperPosition", "Starting goalkeeper positioning", 0x00FFFFFF);
-    
+
     return NodeStatus::RUNNING;
 }
 
@@ -1147,12 +1147,12 @@ NodeStatus GoalKeeperPosition::onRunning()
     if (brain->tree->getEntry<bool>("ball_location_known")) {
         double ballY = brain->data->ball.posToField.y;
         double yAdjustment = ballY * _yAdjustmentFactor;
-        
+
         // Cap the adjustment to maximum offset
         yAdjustment = cap(yAdjustment, _maxYOffset, -_maxYOffset);
         _targetY = _baseY + yAdjustment;
-        
-        brain->log->logToScreen("GoalKeeperPosition", 
+
+        brain->log->logToScreen("GoalKeeperPosition",
             format("Ball Y: %.2f, Target Y: %.2f", ballY, _targetY), 0x00FFFFFF);
     }
 
@@ -1160,24 +1160,24 @@ NodeStatus GoalKeeperPosition::onRunning()
     double currentX = brain->data->robotPoseToField.x;
     double currentY = brain->data->robotPoseToField.y;
     double currentTheta = brain->data->robotPoseToField.theta;
-    
+
     bool reachedX = fabs(currentX - _targetX) < _positionTolerance;
     bool reachedY = fabs(currentY - _targetY) < _positionTolerance;
     bool reachedTheta = fabs(toPInPI(currentTheta - _targetTheta)) < _angleTolerance;
-    
+
     if (reachedX && reachedY && reachedTheta) {
         brain->client->setVelocity(0, 0, 0);  // Stop movement
-        brain->log->logToScreen("GoalKeeperPosition", 
+        brain->log->logToScreen("GoalKeeperPosition",
             format("Reached target position (%.2f, %.2f, %.2f)", _targetX, _targetY, _targetTheta), 0x00FF00FF);
         return NodeStatus::SUCCESS;
     }
 
     // Continue moving towards target position
-    brain->client->moveToPoseOnField(_targetX, _targetY, _targetTheta, 
+    brain->client->moveToPoseOnField(_targetX, _targetY, _targetTheta,
                                    2.0, 0.4, // long_range_threshold, turn_threshold
                                    _vxLimit, _vyLimit, _vthetaLimit,
                                    _positionTolerance, _positionTolerance, _angleTolerance);
-    
+
     return NodeStatus::RUNNING;
 }
 
@@ -1192,9 +1192,10 @@ NodeStatus GoalKeeperIntercept::onStart()
     double interceptDistance, predictionTime;
     getInput("intercept_distance", interceptDistance);
     getInput("prediction_time", predictionTime);
-    
+
     _startTime = brain->get_clock()->now();
     _hasValidIntercept = false;
+    _phase = TURN_TO_BALL;  // Start with turning phase
 
     // Check if ball is close enough to intercept
     if (!brain->tree->getEntry<bool>("ball_location_known")) {
@@ -1204,7 +1205,7 @@ NodeStatus GoalKeeperIntercept::onStart()
 
     double ballRange = brain->data->ball.range;
     if (ballRange > interceptDistance) {
-        brain->log->logToScreen("GoalKeeperIntercept", 
+        brain->log->logToScreen("GoalKeeperIntercept",
             format("Ball too far: %.2f > %.2f", ballRange, interceptDistance), 0xFFFF00FF);
         return NodeStatus::FAILURE;
     }
@@ -1212,16 +1213,20 @@ NodeStatus GoalKeeperIntercept::onStart()
     // Calculate intercept position
     double ballX = brain->data->ball.posToField.x;
     double ballY = brain->data->ball.posToField.y;
-    
+
     // Simple prediction: assume ball continues in current direction
     // For now, just intercept at current ball position
     _interceptX = ballX;
     _interceptY = ballY;
     _hasValidIntercept = true;
 
-    brain->log->logToScreen("GoalKeeperIntercept", 
-        format("Starting intercept at (%.2f, %.2f)", _interceptX, _interceptY), 0x00FF00FF);
-    
+    // Calculate target angle to face the ball
+    _targetAngle = atan2(ballY - brain->data->robotPoseToField.y,
+                        ballX - brain->data->robotPoseToField.x);
+
+    brain->log->logToScreen("GoalKeeperIntercept",
+        format("Starting intercept at (%.2f, %.2f), target angle: %.2f", _interceptX, _interceptY, _targetAngle), 0x00FF00FF);
+
     return NodeStatus::RUNNING;
 }
 
@@ -1236,18 +1241,6 @@ NodeStatus GoalKeeperIntercept::onRunning()
     getInput("vy_limit", vyLimit);
     getInput("vtheta_limit", vthetaLimit);
 
-    // Check if we've reached the intercept position
-    double currentX = brain->data->robotPoseToField.x;
-    double currentY = brain->data->robotPoseToField.y;
-    
-    double distanceToIntercept = sqrt(pow(currentX - _interceptX, 2) + pow(currentY - _interceptY, 2));
-    
-    if (distanceToIntercept < 0.3) { // Within 30cm of intercept point
-        brain->client->setVelocity(0, 0, 0);
-        brain->log->logToScreen("GoalKeeperIntercept", "Reached intercept position", 0x00FF00FF);
-        return NodeStatus::SUCCESS;
-    }
-
     // Check timeout (5 seconds max)
     if (brain->msecsSince(_startTime) > 5000) {
         brain->client->setVelocity(0, 0, 0);
@@ -1255,12 +1248,99 @@ NodeStatus GoalKeeperIntercept::onRunning()
         return NodeStatus::FAILURE;
     }
 
-    // Move towards intercept position
-    brain->client->moveToPoseOnField(_interceptX, _interceptY, 1.57, // keep 90-degree orientation
-                                   2.0, 0.4, // long_range_threshold, turn_threshold
-                                   vxLimit, vyLimit, vthetaLimit,
-                                   0.3, 0.3, 0.2); // tolerances
-    
+    double currentX = brain->data->robotPoseToField.x;
+    double currentY = brain->data->robotPoseToField.y;
+    double currentTheta = brain->data->robotPoseToField.theta;
+
+    // Phase 1: Turn to face the ball
+    if (_phase == TURN_TO_BALL) {
+        double angleDiff = toPInPI(_targetAngle - currentTheta);
+
+        if (fabs(angleDiff) < 0.1) { // Within 5.7 degrees
+            _phase = MOVE_TO_BALL;
+            brain->log->logToScreen("GoalKeeperIntercept", "Turned to face ball, starting movement", 0x00FF00FF);
+        } else {
+            // Turn toward the ball
+            double vtheta = angleDiff * 0.8; // Proportional control
+            vtheta = cap(vtheta, vthetaLimit, -vthetaLimit);
+            brain->client->setVelocity(0, 0, vtheta);
+            brain->log->logToScreen("GoalKeeperIntercept",
+                format("Turning to face ball: angle diff=%.2f", angleDiff), 0x00FFFFFF);
+            return NodeStatus::RUNNING;
+        }
+    }
+
+        // Phase 2: Move toward the ball
+    if (_phase == MOVE_TO_BALL) {
+        double distanceToIntercept = sqrt(pow(currentX - _interceptX, 2) + pow(currentY - _interceptY, 2));
+
+        if (distanceToIntercept < 0.3) { // Within 30cm of intercept point
+            _phase = MOVE_FORWARD_TO_INTERCEPT;
+            brain->log->logToScreen("GoalKeeperIntercept", "Reached ball, preparing to move forward", 0x00FF00FF);
+            return NodeStatus::RUNNING;
+        }
+
+        // Move toward intercept position while maintaining ball-facing orientation
+        brain->client->moveToPoseOnField(_interceptX, _interceptY, _targetAngle, // face the ball
+                                       2.0, 0.4, // long_range_threshold, turn_threshold
+                                       vxLimit, vyLimit, vthetaLimit,
+                                       0.3, 0.3, 0.2); // tolerances
+
+        brain->log->logToScreen("GoalKeeperIntercept",
+            format("Moving to ball: distance=%.2f", distanceToIntercept), 0x00FFFFFF);
+    }
+
+    // Phase 3: Move forward to intercept the ball
+    if (_phase == MOVE_FORWARD_TO_INTERCEPT) {
+        // Check if ball is still close enough to intercept
+        double ballRange = brain->data->ball.range;
+        double ballX = brain->data->ball.posToField.x;
+        double goalpostX = -6.5; // Goalpost X position (left goal)
+        double distanceToGoal = fabs(ballX - goalpostX);
+        if (ballRange > 0.5) { // Ball moved away
+            brain->log->logToScreen("GoalKeeperIntercept", "Ball moved away, restarting intercept", 0xFFFF00FF);
+            _phase = TURN_TO_BALL; // Restart the process
+            return NodeStatus::RUNNING;
+        }
+
+        // --- Ensure we are facing the opponent's goal (positive X direction) ---
+        // Calculate desired kick direction: from ball to opponent's goal (center X = +field length / 2, Y = 0)
+        double fieldLength = brain->config->fieldDimensions.length;
+        double goalX = fieldLength / 2.0;
+        double goalY = 0.0;
+        double ballY = brain->data->ball.posToField.y;
+        double desiredKickAngle = atan2(goalY - ballY, goalX - ballX);
+        double currentTheta = brain->data->robotPoseToField.theta;
+        double angleDiff = toPInPI(desiredKickAngle - currentTheta);
+
+        // If not facing the correct direction, turn first
+        if (fabs(angleDiff) > 0.2) {
+            double vtheta = angleDiff * 0.8;
+            vtheta = cap(vtheta, vthetaLimit, -vthetaLimit);
+            brain->client->setVelocity(0, 0, vtheta);
+            brain->log->logToScreen("GoalKeeperIntercept",
+                format("Turning to face opponent's goal: angle diff=%.2f", angleDiff), 0x00FF00FF);
+            return NodeStatus::RUNNING;
+        }
+
+        // Ball is close and we're facing the opponent's goal - MOVE FORWARD TO INTERCEPT/KICK!
+        double vx = vxLimit * 0.8; // Move forward at 80% of max speed
+        double vy = 0.0; // No lateral movement
+        double vtheta = 0.0; // No turning
+
+        brain->client->setVelocity(vx, vy, vtheta);
+        brain->log->logToScreen("GoalKeeperIntercept", "MOVING FORWARD TO INTERCEPT BALL TOWARD OPPONENT'S GOAL!", 0xFF0000FF);
+
+        // Continue moving forward for a short time to intercept
+        if (brain->msecsSince(_startTime) > 5000) {
+            brain->client->setVelocity(0, 0, 0); // Stop movement
+            brain->log->logToScreen("GoalKeeperIntercept", "Intercept completed", 0x00FF00FF);
+            return NodeStatus::SUCCESS;
+        }
+
+        return NodeStatus::RUNNING;
+    }
+
     return NodeStatus::RUNNING;
 }
 
@@ -1283,14 +1363,14 @@ NodeStatus GoalKeeperTrackAndAdjust::onStart()
     getInput("position_tolerance", _positionTolerance);
 
     brain->log->logToScreen("GoalKeeperTrackAndAdjust", "Starting goalkeeper tracking and adjustment", 0x00FFFFFF);
-    
+
     return NodeStatus::RUNNING;
 }
 
 NodeStatus GoalKeeperTrackAndAdjust::onRunning()
 {
-    // Default position
-    double targetX = _baseX;
+    // Default position - only Y axis movement
+    double targetX = _baseX;  // Fixed X position at goal line
     double targetY = 0.0;
     double targetTheta = 1.57; // 90 degrees
 
@@ -1299,46 +1379,45 @@ NodeStatus GoalKeeperTrackAndAdjust::onRunning()
         double ballX = brain->data->ball.posToField.x;
         double ballY = brain->data->ball.posToField.y;
         double ballRange = brain->data->ball.range;
-        
-        // Adjust Y position based on ball Y position
+
+        // Only adjust Y position based on ball Y position
+        // No X adjustment - robot stays at goal line (X = -6.5)
         double yAdjustment = ballY * _ballYFactor;
         yAdjustment = cap(yAdjustment, _maxAdjustment, -_maxAdjustment);
         targetY = yAdjustment;
-        
-        // Slightly adjust X position if ball is very close
-        if (ballRange < 2.0) {
-            targetX = _baseX + 0.1; // Move slightly forward
-        }
-        
-        brain->log->logToScreen("GoalKeeperTrackAndAdjust", 
-            format("Ball (%.2f, %.2f), Target (%.2f, %.2f)", ballX, ballY, targetX, targetY), 0x00FFFFFF);
+
+        // No X position adjustment - always stay at base position
+        targetX = _baseX;  // Always at goal line
+
+        brain->log->logToScreen("GoalKeeperTrackAndAdjust",
+            format("Ball (%.2f, %.2f), Target (%.2f, %.2f) - Y-only movement", ballX, ballY, targetX, targetY), 0x00FFFFFF);
     }
 
     // Get current position
     double currentX = brain->data->robotPoseToField.x;
     double currentY = brain->data->robotPoseToField.y;
     double currentTheta = brain->data->robotPoseToField.theta;
-    
+
     // Check if we're close enough to target (for continuous adjustment, we use a smaller tolerance)
-    bool closeToTarget = (fabs(currentX - targetX) < _positionTolerance) && 
-                        (fabs(currentY - targetY) < _positionTolerance) && 
+    bool closeToTarget = (fabs(currentX - targetX) < _positionTolerance) &&
+                        (fabs(currentY - targetY) < _positionTolerance) &&
                         (fabs(toPInPI(currentTheta - targetTheta)) < 0.1);
-    
+
     // For tracking and adjustment, we continue running even when close to target
     // because the target position changes based on ball movement
-    
-    // Calculate velocity for smooth movement
-    double vx = (targetX - currentX) * _adjustmentSpeed;
+
+    // Calculate velocity for smooth movement - only Y axis
+    double vx = 0.0;  // No X movement - stay at goal line
     double vy = (targetY - currentY) * _adjustmentSpeed;
     double vtheta = toPInPI(targetTheta - currentTheta) * 0.5;
-    
+
     // Apply limits
-    vx = cap(vx, _vxLimit, -_vxLimit);
+    vx = 0.0;  // Force X velocity to zero
     vy = cap(vy, _vyLimit, -_vyLimit);
     vtheta = cap(vtheta, _vthetaLimit, -_vthetaLimit);
-    
+
     brain->client->setVelocity(vx, vy, vtheta);
-    
+
     // Keep running to continuously adjust position
     return NodeStatus::RUNNING;
 }
@@ -1377,9 +1456,9 @@ NodeStatus FollowTeammate::onStart()
     }
 
     _hasValidTarget = false;
-    brain->log->logToScreen("FollowTeammate", 
+    brain->log->logToScreen("FollowTeammate",
         format("Starting to follow robot %d", _possessionPlayerId), 0x00FFFFFF);
-    
+
     return NodeStatus::RUNNING;
 }
 
@@ -1402,17 +1481,17 @@ NodeStatus FollowTeammate::onRunning()
     // Update possession player ID if changed
     if (currentPossessionId != _possessionPlayerId) {
         _possessionPlayerId = currentPossessionId;
-        brain->log->logToScreen("FollowTeammate", 
+        brain->log->logToScreen("FollowTeammate",
             format("Ball possession changed, now following robot %d", _possessionPlayerId), 0x00FFFFFF);
     }
 
     // Get teammate positions
     auto teammates = brain->communication->getTeammatePositions();
-    
+
     // Find the teammate with ball possession
     BrainCommunication::TeammateInfo possessionTeammate;
     bool foundPossessionTeammate = false;
-    
+
     for (const auto& teammate : teammates) {
         if (teammate.playerId == _possessionPlayerId && teammate.hasValidPose) {
             possessionTeammate = teammate;
@@ -1420,9 +1499,9 @@ NodeStatus FollowTeammate::onRunning()
             break;
         }
     }
-    
+
     if (!foundPossessionTeammate) {
-        brain->log->logToScreen("FollowTeammate", 
+        brain->log->logToScreen("FollowTeammate",
             format("Cannot find position of robot %d with ball possession", _possessionPlayerId), 0xFFFF00FF);
         return NodeStatus::FAILURE;
     }
@@ -1430,7 +1509,7 @@ NodeStatus FollowTeammate::onRunning()
     // Get ball position (we need this to calculate the optimal follow position)
     double ballX = 0.0, ballY = 0.0;
     bool ballPosKnown = false;
-    
+
     if (brain->tree->getEntry<bool>("ball_location_known")) {
         ballX = brain->data->ball.posToField.x;
         ballY = brain->data->ball.posToField.y;
@@ -1447,18 +1526,18 @@ NodeStatus FollowTeammate::onRunning()
             }
         }
     }
-    
+
     if (!ballPosKnown) {
         brain->log->logToScreen("FollowTeammate", "Ball position unknown, cannot determine follow position", 0xFFFF00FF);
         return NodeStatus::FAILURE;
     }
 
     // Calculate follow position
-    auto followPos = calculateFollowPosition(possessionTeammate.robotPoseX, possessionTeammate.robotPoseY, 
+    auto followPos = calculateFollowPosition(possessionTeammate.robotPoseX, possessionTeammate.robotPoseY,
                                            ballX, ballY, _followDistance);
     _targetX = followPos.first;
     _targetY = followPos.second;
-    
+
     // Calculate target orientation to face the ball
     _targetTheta = calculateBallViewingAngle(_targetX, _targetY, ballX, ballY);
     _hasValidTarget = true;
@@ -1467,24 +1546,24 @@ NodeStatus FollowTeammate::onRunning()
     double currentX = brain->data->robotPoseToField.x;
     double currentY = brain->data->robotPoseToField.y;
     double currentTheta = brain->data->robotPoseToField.theta;
-    
-    bool reachedPosition = (fabs(currentX - _targetX) < _positionTolerance) && 
+
+    bool reachedPosition = (fabs(currentX - _targetX) < _positionTolerance) &&
                           (fabs(currentY - _targetY) < _positionTolerance);
     bool reachedAngle = fabs(toPInPI(currentTheta - _targetTheta)) < _angleTolerance;
-    
+
     if (reachedPosition && reachedAngle) {
-        brain->log->logToScreen("FollowTeammate", 
+        brain->log->logToScreen("FollowTeammate",
             format("Following robot %d at position (%.2f, %.2f)", _possessionPlayerId, _targetX, _targetY), 0x00FFFFFF);
         brain->client->setVelocity(0, 0, 0);
         return NodeStatus::RUNNING; // Keep following (continuous behavior)
     }
 
     // Move towards target position
-    brain->client->moveToPoseOnField(_targetX, _targetY, _targetTheta, 
-                                   _longRangeThreshold, _turnThreshold, 
+    brain->client->moveToPoseOnField(_targetX, _targetY, _targetTheta,
+                                   _longRangeThreshold, _turnThreshold,
                                    _vxLimit, _vyLimit, _vthetaLimit,
                                    _positionTolerance, _positionTolerance, _angleTolerance);
-    
+
     return NodeStatus::RUNNING;
 }
 
@@ -1495,38 +1574,38 @@ void FollowTeammate::onHalted()
     brain->log->logToScreen("FollowTeammate", "Follow teammate halted", 0xFFFF00FF);
 }
 
-std::pair<double, double> FollowTeammate::calculateFollowPosition(double teammateX, double teammateY, 
+std::pair<double, double> FollowTeammate::calculateFollowPosition(double teammateX, double teammateY,
                                                                 double ballX, double ballY, double followDistance)
 {
     // Calculate the angle from teammate to ball
     double teammateToBallAngle = atan2(ballY - teammateY, ballX - teammateX);
-    
+
     // Calculate two possible follow positions: left-rear and right-rear
     double rearAngle = teammateToBallAngle + M_PI; // 180 degrees behind
     double leftRearAngle = rearAngle + M_PI/3;     // 60 degrees to the left of rear
     double rightRearAngle = rearAngle - M_PI/3;    // 60 degrees to the right of rear
-    
+
     // Calculate positions
     double leftRearX = teammateX + followDistance * cos(leftRearAngle);
     double leftRearY = teammateY + followDistance * sin(leftRearAngle);
-    
+
     double rightRearX = teammateX + followDistance * cos(rightRearAngle);
     double rightRearY = teammateY + followDistance * sin(rightRearAngle);
-    
+
     // Calculate distances from current position to both options
     double currentX = brain->data->robotPoseToField.x;
     double currentY = brain->data->robotPoseToField.y;
-    
+
     double distToLeft = sqrt(pow(currentX - leftRearX, 2) + pow(currentY - leftRearY, 2));
     double distToRight = sqrt(pow(currentX - rightRearX, 2) + pow(currentY - rightRearY, 2));
-    
+
     // Choose the closer position
     if (distToLeft < distToRight) {
-        brain->log->logToScreen("FollowTeammate", 
+        brain->log->logToScreen("FollowTeammate",
             format("Following left-rear position (%.2f, %.2f)", leftRearX, leftRearY), 0x00FFFFFF);
         return {leftRearX, leftRearY};
     } else {
-        brain->log->logToScreen("FollowTeammate", 
+        brain->log->logToScreen("FollowTeammate",
             format("Following right-rear position (%.2f, %.2f)", rightRearX, rightRearY), 0x00FFFFFF);
         return {rightRearX, rightRearY};
     }

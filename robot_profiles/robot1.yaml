@@ -3,19 +3,19 @@ brain:
     collaboration_role: master
     field_type: adult_size
     player_id: 0
-    player_role: striker
+    player_role: goal_keeper
     player_start_pos: left
     team_id: 31
   rerunLog:
     enable: true
     img_interval: 10
-    server_addr: 192.168.5.75:9876
+    server_addr: 192.168.5.57:9876
   robot:
     odom_factor: 1.2
     robot_height: 1.0
     vx_factor: 0.9
     yaw_offset: 0.1
-description: Striker, left starting position
+description: Goalkeeper, left starting position
 name: 'Robot #1'
 network:
   interfaces:

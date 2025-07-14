@@ -432,7 +432,7 @@ private:
     double _angle; // How many radians to turn
     double _cumAngle; // Total angle turned
     double _msecLimit = 5000;  // Maximum execution time in milliseconds (prevent deadlock)
-    rclcpp::Time _timeStart; // Time when entering the node 
+    rclcpp::Time _timeStart; // Time when entering the node
     Brain *brain;
 };
 
@@ -475,7 +475,7 @@ private:
     double _positionTolerance, _angleTolerance;
 };
 
-// GoalKeeper Intercept: Actively intercept the ball when it's close
+// GoalKeeper Intercept: Actively intercept the ball by moving forward when it's close
 class GoalKeeperIntercept : public StatefulActionNode
 {
 public:
@@ -501,6 +501,11 @@ private:
     double _interceptX, _interceptY;
     bool _hasValidIntercept;
     rclcpp::Time _startTime;
+
+    // Three-phase interception
+    enum Phase { TURN_TO_BALL, MOVE_TO_BALL, MOVE_FORWARD_TO_INTERCEPT };
+    Phase _phase;
+    double _targetAngle;  // Angle to face the ball
 };
 
 // GoalKeeper Track and Adjust: Track ball and adjust position accordingly
@@ -580,9 +585,9 @@ public:
     }
 
     NodeStatus onStart() override;
-    
+
     NodeStatus onRunning() override;
-    
+
     void onHalted() override;
 
 private:
@@ -615,9 +620,9 @@ public:
     }
 
     NodeStatus onStart() override;
-    
+
     NodeStatus onRunning() override;
-    
+
     void onHalted() override;
 
 private:
@@ -628,7 +633,7 @@ private:
     double _positionTolerance, _angleTolerance;
     int _possessionPlayerId;
     bool _hasValidTarget;
-    
+
     // Helper functions
     std::pair<double, double> calculateFollowPosition(double teammateX, double teammateY, double ballX, double ballY, double followDistance);
     double calculateBallViewingAngle(double robotX, double robotY, double ballX, double ballY);

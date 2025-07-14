@@ -4,7 +4,7 @@ brain:
     field_type: adult_size
     player_id: 1
     player_role: striker
-    player_start_pos: right
+    player_start_pos: left
     team_id: 31
   rerunLog:
     enable: true
@@ -27,7 +27,7 @@ sftp:
   password: '123456'
   port: 22
   remotePath: /home/booster/Workspace/playground/robocup_prototype
-  username: booster 
+  username: booster
 vision:
   show_res: false
   camera:

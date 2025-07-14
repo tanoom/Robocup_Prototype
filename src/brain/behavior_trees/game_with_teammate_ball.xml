@@ -8,7 +8,7 @@
     <include path="./subtrees/subtree_goal_keeper_freekick.xml" />
     <include path="./subtrees/subtree_auto_standup_and_locate.xml" />
     <include path="./subtrees/subtree_find_ball.xml" />
-    
+
     <BehaviorTree ID="MainTree">
         <Sequence name="root">
             <RunOnce> <Script code="treat_person_as_robot:=false" /> </RunOnce>
@@ -81,4 +81,4 @@
             </ReactiveSequence>
         </Sequence>
     </BehaviorTree>
-</root> 
+</root>

@@ -21,6 +21,7 @@ def generate_launch_description():
                     "ip_white_list": [
                         "127.0.0.1",
                         "192.168.5.75",
+                        "192.168.5.57"
                     ],
                 }
             ]
