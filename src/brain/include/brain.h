@@ -118,4 +118,13 @@ private:
     rclcpp::Subscription<geometry_msgs::msg::Pose>::SharedPtr headPoseSubscription;
     rclcpp::Subscription<booster_interface::msg::RawBytesMsg>::SharedPtr recoveryStateSubscription;
 
+    // Collaboration timer
+    rclcpp::Time lastCollaborationUpdateTime;
+
+    // Loop timing statistics
+    rclcpp::Time loopStartTime;
+    double totalLoopTime;
+    double maxLoopTime;
+    double minLoopTime;
+    int loopCount;
 };

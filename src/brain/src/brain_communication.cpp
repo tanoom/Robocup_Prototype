@@ -547,7 +547,7 @@ std::vector<BrainCommunication::TeammateInfo> BrainCommunication::getTeammatePos
 }
 
 std::vector<BrainCommunication::TeammateInfo> BrainCommunication::getTeammateBallInfo() {
-    std::lock_guard<std::mutex> lock(_teammate_addresses_mutex);
+    // std::lock_guard<std::mutex> lock(_teammate_addresses_mutex);
     std::vector<TeammateInfo> teammates;
     
     for (const auto& pair : _teammate_addresses) {
@@ -560,7 +560,7 @@ std::vector<BrainCommunication::TeammateInfo> BrainCommunication::getTeammateBal
 }
 
 std::vector<BrainCommunication::TeammateInfo> BrainCommunication::getTeammateCollaborationInfo() {
-    std::lock_guard<std::mutex> lock(_teammate_addresses_mutex);
+    // std::lock_guard<std::mutex> lock(_teammate_addresses_mutex);
     std::vector<TeammateInfo> teammates;
     
     for (const auto& pair : _teammate_addresses) {

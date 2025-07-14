@@ -66,6 +66,12 @@ void Brain::init()
 
     data->lastSuccessfulLocalizeTime = get_clock()->now();
 
+    // Initialize loop timing statistics
+    totalLoopTime = 0.0;
+    maxLoopTime = 0.0;
+    minLoopTime = std::numeric_limits<double>::max();
+    loopCount = 0;
+
     joySubscription = create_subscription<booster_interface::msg::RemoteControllerState>("/remote_controller_state", 10, bind(&Brain::joystickCallback, this, _1));
     gameControlSubscription = create_subscription<game_controller_interface::msg::GameControlData>("/robocup/game_controller", 1, bind(&Brain::gameControlCallback, this, _1));
     detectionsSubscription = create_subscription<vision_interface::msg::Detections>("/booster_vision/detection", 1, bind(&Brain::detectionsCallback, this, _1));
@@ -112,12 +118,73 @@ void Brain::loadConfig()
  */
 void Brain::tick()
 {
+    // Record loop start time
+    loopStartTime = get_clock()->now();
+    
     updateMemory();
     updateCollaboration();
     tree->tick();
+    
+    // Calculate loop execution time
+    auto loopEndTime = get_clock()->now();
+    double currentLoopTime = (loopEndTime - loopStartTime).nanoseconds() / 1e6; // Convert to milliseconds
+    
+    // Update statistics
+    totalLoopTime += currentLoopTime;
+    loopCount++;
+    
+    if (currentLoopTime > maxLoopTime) {
+        maxLoopTime = currentLoopTime;
+    }
+    if (currentLoopTime < minLoopTime) {
+        minLoopTime = currentLoopTime;
+    }
+    
+    // Output statistics every 1000 loops (approximately every 1-10 seconds depending on loop frequency)
+    static int outputCounter = 0;
+    outputCounter++;
+    if (outputCounter % 1000 == 0) {
+        double avgLoopTime = totalLoopTime / loopCount;
+        double loopFrequency = 1000.0 / avgLoopTime; // Hz
+        
+        prtDebug(format("=== Loop 时间统计 (最近 %d 次循环) ===", loopCount));
+        prtDebug(format("当前循环时间: %.2f ms", currentLoopTime));
+        prtDebug(format("平均循环时间: %.2f ms", avgLoopTime));
+        prtDebug(format("最大循环时间: %.2f ms", maxLoopTime));
+        prtDebug(format("最小循环时间: %.2f ms", minLoopTime));
+        prtDebug(format("循环频率: %.1f Hz", loopFrequency));
+        prtDebug(format("总循环次数: %d", loopCount));
+        
+        // Reset statistics for next measurement period
+        totalLoopTime = 0.0;
+        maxLoopTime = 0.0;
+        minLoopTime = std::numeric_limits<double>::max();
+        loopCount = 0;
+        outputCounter = 0;
+    }
 }
 
 void Brain::updateCollaboration() {
+    // Check if enough time has passed since last collaboration update (100ms interval)
+    auto currentTime = get_clock()->now();
+    
+    // Initialize the timer on first call
+    static bool firstCall = true;
+    if (firstCall) {
+        lastCollaborationUpdateTime = currentTime;
+        firstCall = false;
+    }
+    
+    // Check if 100ms have passed since last update
+    auto timeSinceLastUpdate = (currentTime - lastCollaborationUpdateTime).nanoseconds() / 1e6; // Convert to milliseconds
+    if (timeSinceLastUpdate < 100.0) {
+        // Not enough time passed, skip this update
+        return;
+    }
+    
+    // Update the timer
+    lastCollaborationUpdateTime = currentTime;
+    
     // Only process collaboration if ball is detected
     if (!data->ballDetected) {
         static int no_ball_counter = 0;
@@ -132,8 +199,8 @@ void Brain::updateCollaboration() {
     
     // Debug: 输出当前状态
     static int collab_counter = 0;
-    if (collab_counter % 100 == 0) { // 每100次输出一次
-        prtDebug(format("协作更新: role='%s', playerId=%d, ballCost=%.2f, possessionPlayerId=%d", 
+    if (collab_counter % 10 == 0) { // 调整为每10次输出一次，因为现在更新频率降低了
+        prtDebug(format("协作更新: role='%s', playerId=%d, ballCost=%.2f, possessionPlayerId=%d (100ms timer)", 
             config->collaborationRole.c_str(), config->playerId, data->ballCost, data->possessionPlayerId));
     }
     collab_counter++;
@@ -158,7 +225,22 @@ void Brain::calculateBallCost() {
         prtDebug("使用自己检测到的球位置计算成本");
     } else {
         // 自己没看到球，尝试使用队友的球信息
+        auto startTime = get_clock()->now();
         auto teammatesBallInfo = communication->getTeammateBallInfo();
+        auto endTime = get_clock()->now();
+        double commTime = (endTime - startTime).nanoseconds() / 1e6; // Convert to milliseconds
+        
+        static double totalBallInfoTime = 0.0;
+        static int ballInfoCallCount = 0;
+        static double maxBallInfoTime = 0.0;
+        totalBallInfoTime += commTime;
+        ballInfoCallCount++;
+        if (commTime > maxBallInfoTime) maxBallInfoTime = commTime;
+        
+        if (ballInfoCallCount % 100 == 0) {
+            prtDebug(format("getTeammateBallInfo() 时间统计: 当前=%.3fms, 平均=%.3fms, 最大=%.3fms, 队友数=%zu", 
+                commTime, totalBallInfoTime/ballInfoCallCount, maxBallInfoTime, teammatesBallInfo.size()));
+        }
         
         if (!teammatesBallInfo.empty()) {
             // 找到距离自己最近的球位置
@@ -213,7 +295,23 @@ void Brain::processMasterDecision() {
     robotCosts.push_back({config->playerId, data->ballCost});
     
     // Add teammates' costs
+    auto startTime = get_clock()->now();
     auto teammates = communication->getTeammateCollaborationInfo();
+    auto endTime = get_clock()->now();
+    double commTime = (endTime - startTime).nanoseconds() / 1e6; // Convert to milliseconds
+    
+    static double totalMasterCollabTime = 0.0;
+    static int masterCollabCallCount = 0;
+    static double maxMasterCollabTime = 0.0;
+    totalMasterCollabTime += commTime;
+    masterCollabCallCount++;
+    if (commTime > maxMasterCollabTime) maxMasterCollabTime = commTime;
+    
+    if (masterCollabCallCount % 50 == 0) {
+        prtDebug(format("Master getTeammateCollaborationInfo() 时间统计: 当前=%.3fms, 平均=%.3fms, 最大=%.3fms, 队友数=%zu", 
+            commTime, totalMasterCollabTime/masterCollabCallCount, maxMasterCollabTime, teammates.size()));
+    }
+    
     prtDebug(format("Master收集信息: 自己(ID=%d, cost=%.2f), 队友数量=%zu", 
         config->playerId, data->ballCost, teammates.size()));
     
@@ -254,7 +352,22 @@ void Brain::processMasterDecision() {
 
 void Brain::processSlaveUpdates() {
     // Get possession assignment from master
+    auto startTime = get_clock()->now();
     auto teammates = communication->getTeammateCollaborationInfo();
+    auto endTime = get_clock()->now();
+    double commTime = (endTime - startTime).nanoseconds() / 1e6; // Convert to milliseconds
+    
+    static double totalSlaveCollabTime = 0.0;
+    static int slaveCollabCallCount = 0;
+    static double maxSlaveCollabTime = 0.0;
+    totalSlaveCollabTime += commTime;
+    slaveCollabCallCount++;
+    if (commTime > maxSlaveCollabTime) maxSlaveCollabTime = commTime;
+    
+    if (slaveCollabCallCount % 50 == 0) {
+        prtDebug(format("Slave getTeammateCollaborationInfo() 时间统计: 当前=%.3fms, 平均=%.3fms, 最大=%.3fms, 队友数=%zu", 
+            commTime, totalSlaveCollabTime/slaveCollabCallCount, maxSlaveCollabTime, teammates.size()));
+    }
     
     prtDebug(format("Slave更新: 收到%zu个队友信息", teammates.size()));
     
