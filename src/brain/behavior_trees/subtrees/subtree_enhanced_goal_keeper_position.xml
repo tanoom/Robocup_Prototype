@@ -1,0 +1,30 @@
+<root BTCPP_format="4" >
+   <BehaviorTree ID="EnhancedGoalKeeperPosition">
+      <Sequence name="enhanced_positioning">
+         <RunOnce>
+            <PrintMsg msg="Starting Enhanced Goal Keeper Positioning" />
+         </RunOnce>
+         
+         <ReactiveSequence name="adaptive_positioning">
+            <!-- Determine optimal orientation based on current robot orientation -->
+                         <IfThenElse>
+                <ScriptCondition name="Is robot closer to 90 degrees?" code="is_closer_to_forward_orientation" />
+               <Sequence name="position_at_90_degrees">
+                  <PrintMsg msg="Robot closer to 90°, positioning at 90° orientation" />
+                  <GoalKeeperPosition base_x="-6.5" base_y="0.0" base_theta="1.57" 
+                                     y_adjustment_factor="0.3" max_y_offset="0.8"
+                                     vx_limit="0.3" vy_limit="0.3" vtheta_limit="0.5" />
+               </Sequence>
+               <Sequence name="position_at_minus_90_degrees">
+                  <PrintMsg msg="Robot closer to -90°, positioning at -90° orientation" />
+                  <GoalKeeperPosition base_x="-6.5" base_y="0.0" base_theta="-1.57" 
+                                     y_adjustment_factor="0.3" max_y_offset="0.8"
+                                     vx_limit="0.3" vy_limit="0.3" vtheta_limit="0.5" />
+               </Sequence>
+            </IfThenElse>
+         </ReactiveSequence>
+         
+         <PrintMsg msg="Enhanced Goal Keeper Positioning completed" />
+      </Sequence>
+   </BehaviorTree>
+</root> 

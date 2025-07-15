@@ -436,6 +436,69 @@ private:
     Brain *brain;
 };
 
+// Position-based turn node that turns by a relative angle (no visual feedback)
+class TurnByAngle : public StatefulActionNode
+{
+public:
+    TurnByAngle(const string &name, const NodeConfig &config, Brain *_brain) : StatefulActionNode(name, config), brain(_brain) {}
+
+    static PortsList providedPorts()
+    {
+        return {
+            InputPort<double>("rad", 0, "How many radians to turn, positive for left"),
+            InputPort<double>("angular_velocity", 1.0, "Angular velocity in rad/s for turning"),
+            InputPort<double>("tolerance", 0.05, "Angle tolerance in radians for completion"),
+            InputPort<int>("timeout_ms", 5000, "Maximum execution time in milliseconds")
+        };
+    }
+
+    NodeStatus onStart() override;
+
+    NodeStatus onRunning() override;
+
+    void onHalted() override;
+
+private:
+    double _startAngle;       // Starting angle from odometry
+    double _targetAngle;      // Target angle to reach
+    double _turnAngle;        // How much to turn (input)
+    double _angularVelocity;  // Angular velocity to use
+    double _tolerance;        // Completion tolerance
+    int _timeoutMs;           // Timeout in milliseconds
+    rclcpp::Time _startTime;  // Start time
+    Brain *brain;
+};
+
+// Position-based turn node that turns to an absolute angle in field coordinates
+class TurnToAngle : public StatefulActionNode
+{
+public:
+    TurnToAngle(const string &name, const NodeConfig &config, Brain *_brain) : StatefulActionNode(name, config), brain(_brain) {}
+
+    static PortsList providedPorts()
+    {
+        return {
+            InputPort<double>("target_angle", 0, "Target angle in field coordinates (radians)"),
+            InputPort<double>("angular_velocity", 1.0, "Angular velocity in rad/s for turning"),
+            InputPort<double>("tolerance", 0.05, "Angle tolerance in radians for completion"),
+            InputPort<int>("timeout_ms", 5000, "Maximum execution time in milliseconds")
+        };
+    }
+
+    NodeStatus onStart() override;
+
+    NodeStatus onRunning() override;
+
+    void onHalted() override;
+
+private:
+    double _targetAngle;      // Target angle in field coordinates
+    double _angularVelocity;  // Angular velocity to use
+    double _tolerance;        // Completion tolerance
+    int _timeoutMs;           // Timeout in milliseconds
+    rclcpp::Time _startTime;  // Start time
+    Brain *brain;
+};
 
 
 // ------------------------------- FOR GOALKEEPER -------------------------------
@@ -536,6 +599,50 @@ private:
     Brain *brain;
     double _baseX, _adjustmentSpeed, _ballYFactor, _maxAdjustment;
     double _vxLimit, _vyLimit, _vthetaLimit, _positionTolerance;
+};
+
+// GoalKeeper Y-Axis Defense: Always orient along Y-axis, predict ball direction, and react accordingly
+class GoalKeeperYAxisDefense : public StatefulActionNode
+{
+public:
+    GoalKeeperYAxisDefense(const string &name, const NodeConfig &config, Brain *_brain) : StatefulActionNode(name, config), brain(_brain) {}
+
+    static PortsList providedPorts()
+    {
+        return {
+            InputPort<double>("base_x", -6.5, "Base X position for goalkeeper"),
+            InputPort<double>("base_y", 0.0, "Base Y position for goalkeeper"),
+            InputPort<double>("base_theta", 1.57, "Base orientation (Y-axis aligned)"),
+            InputPort<double>("prediction_distance", 1.0, "Distance to start ball direction prediction"),
+            InputPort<double>("reaction_speed", 0.5, "Speed of forward/backward reaction"),
+            InputPort<double>("vx_limit", 0.6, "X velocity limit for forward/backward movement"),
+            InputPort<double>("vy_limit", 0.4, "Y velocity limit for lateral adjustment"),
+            InputPort<double>("vtheta_limit", 1.0, "Angular velocity limit"),
+        };
+    }
+
+    NodeStatus onStart() override;
+    NodeStatus onRunning() override;
+    void onHalted() override;
+
+private:
+    Brain *brain;
+    double _baseX, _baseY, _baseTheta;
+    double _predictionDistance, _reactionSpeed;
+    double _vxLimit, _vyLimit, _vthetaLimit;
+    
+    // Ball direction prediction
+    enum BallDirection { BALL_UNKNOWN, BALL_MOVING_FORWARD, BALL_MOVING_BACKWARD, BALL_STATIONARY };
+    BallDirection _ballDirection;
+    double _lastBallX, _lastBallY;
+    rclcpp::Time _lastBallTime;
+    
+    // Phases of defense
+    enum DefensePhase { ORIENT_Y_AXIS, PREDICT_AND_REACT, INTERCEPT };
+    DefensePhase _phase;
+    
+    BallDirection predictBallDirection();
+    void executeReaction();
 };
 
 // ------------------------------- FOR DEMO -------------------------------

@@ -1,45 +1,29 @@
 <root BTCPP_format="4" >
    <include path="./subtree_cam_find_and_track_ball.xml" />
+   <include path="./subtree_enhanced_goal_keeper_cam_track.xml" />
+   <include path="./subtree_enhanced_goal_keeper_position.xml" />
+   <include path="./subtree_enhanced_goal_keeper_defense.xml" />
    <BehaviorTree ID="AdvancedGoalKeeperPlay">
       <ReactiveSequence >
          <!-- 等待开球执行前的准备阶段 -->
          <ReactiveSequence _while="!gamecontroller_isKickOffExecuted" name="wait_for_kickoff">
-            <!-- 头部跟踪球 -->
-            <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
-            <!-- 移动到球门中间，朝向90度 -->
-            <GoalKeeperPosition base_x="-6.5" base_y="0.0" base_theta="1.57"
-                               y_adjustment_factor="0.3" max_y_offset="0.8"
-                               vx_limit="0.3" vy_limit="0.3" vtheta_limit="0.5" />
+            <!-- 增强型头部跟踪球（支持360度搜索） -->
+            <SubTree ID="EnhancedGoalKeeperCamTrack" _autoremap="true" />
+            <!-- 移动到球门中间，智能选择90度或-90度朝向 -->
+            <SubTree ID="EnhancedGoalKeeperPosition" _autoremap="true" />
             <!-- 自我定位 -->
             <SelfLocate mode="penalty_point_localize" _while="odom_calibrated" />
          </ReactiveSequence>
 
          <!-- 开球后的三层智能防守策略 -->
          <ReactiveSequence _while="gamecontroller_isKickOffExecuted" name="intelligent_defense">
-            <!-- 持续头部跟踪球 -->
-            <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
+            <!-- 持续增强型头部跟踪球（支持360度搜索） -->
+            <SubTree ID="EnhancedGoalKeeperCamTrack" _autoremap="true" />
             <!-- 持续自我定位 -->
             <SelfLocate mode="penalty_point_localize" _while="odom_calibrated" />
-
-            <!-- 三层防守策略 -->
-            <Sequence>
-               <!-- 第一层：远距离防守 (球距离 > 4.0米) -->
-               <GoalKeeperPosition _while="ball_range > 4.0"
-                                  base_x="-6.5" base_y="0.0" base_theta="1.57"
-                                  y_adjustment_factor="0.4" max_y_offset="1.0"
-                                  vx_limit="0.3" vy_limit="0.3" vtheta_limit="0.5" />
-
-               <!-- 第二层：中距离调整 (球距离 2.0-4.0米) -->
-               <GoalKeeperTrackAndAdjust _while="ball_range <= 4.0 && ball_range > 2.0"
-                                        base_x="-6.5" adjustment_speed="0.3"
-                                        ball_y_factor="0.4" max_adjustment="0.9"
-                                        vx_limit="0.2" vy_limit="0.2" vtheta_limit="0.3" />
-
-               <!-- 第三层：近距离拦截 (球距离 <= 2.0米) -->
-               <GoalKeeperIntercept _while="ball_range <= 2.0"
-                                   intercept_distance="2.0" prediction_time="1.0"
-                                   vx_limit="0.6" vy_limit="0.4" vtheta_limit="1.5" />
-            </Sequence>
+            
+            <!-- 增强型三层防守策略 (支持90度和-90度朝向) -->
+            <SubTree ID="EnhancedGoalKeeperDefense" _autoremap="true" />
          </ReactiveSequence>
       </ReactiveSequence>
    </BehaviorTree>

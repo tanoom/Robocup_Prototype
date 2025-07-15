@@ -55,7 +55,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
             'tree', 
-            default_value='collaborative_game.xml',
+            default_value='advanced_game_with_new_goalkeeper.xml',
             description='Specify behavior tree file name. DO NOT include full path, file should be in src/brain/config/behavior_trees'
         ),
         DeclareLaunchArgument(

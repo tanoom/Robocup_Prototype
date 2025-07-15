@@ -177,7 +177,7 @@ void Brain::updateCollaboration() {
 
     // Check if 100ms have passed since last update
     auto timeSinceLastUpdate = (currentTime - lastCollaborationUpdateTime).nanoseconds() / 1e6; // Convert to milliseconds
-    if (timeSinceLastUpdate < 100.0) {
+    if (timeSinceLastUpdate < 1000.0) {
         // Not enough time passed, skip this update
         return;
     }
@@ -409,7 +409,22 @@ void Brain::updateMemory()
 {
     // Update current time for behavior tree scripts
     tree->setEntry<double>("current_time", get_clock()->now().seconds());
-
+    
+    // Update robot pose for behavior tree scripts
+    tree->setEntry<double>("robot_pose_x", data->robotPoseToField.x);
+    tree->setEntry<double>("robot_pose_y", data->robotPoseToField.y);
+    tree->setEntry<double>("robot_pose_theta", data->robotPoseToField.theta);
+    
+    // Calculate if robot is closer to forward orientation (90°) than backward (-90°)
+    double forward_diff = fabs(data->robotPoseToField.theta - 1.57);  // Distance to 90°
+    double backward_diff = fabs(data->robotPoseToField.theta - (-1.57));  // Distance to -90°
+    bool is_closer_to_forward = forward_diff < backward_diff;
+    tree->setEntry<bool>("is_closer_to_forward_orientation", is_closer_to_forward);
+    
+    // Calculate if robot is currently facing forward (within ±0.2 radians of 90°)
+    bool is_facing_forward = fabs(data->robotPoseToField.theta - 1.57) < 0.2;
+    tree->setEntry<bool>("is_facing_forward", is_facing_forward);
+    
     // Update collaboration-related blackboard entries
     tree->setEntry<bool>("has_ball_possession", data->hasBallPossession);
     tree->setEntry<int>("possession_player_id", data->possessionPlayerId);
@@ -453,6 +468,18 @@ void Brain::updateBallMemory()
     data->ball.range = sqrt(data->ball.posToRobot.x * data->ball.posToRobot.x + data->ball.posToRobot.y * data->ball.posToRobot.y);
     tree->setEntry<double>("ball_range", data->ball.range);
     data->ball.yawToRobot = atan2(data->ball.posToRobot.y, data->ball.posToRobot.x);
+    tree->setEntry<double>("ball_yaw_to_robot", data->ball.yawToRobot);
+    
+    // Set ball position variables for behavior tree scripts
+    tree->setEntry<double>("ball_x", data->ball.posToField.x);
+    tree->setEntry<double>("ball_y", data->ball.posToField.y);
+    
+    // Calculate ball tracking range conditions to avoid BehaviorTree parsing errors
+    bool ball_within_head_tracking_range = (data->ball.yawToRobot < 0.5 && data->ball.yawToRobot > -0.5);
+    tree->setEntry<bool>("ball_within_head_tracking_range", ball_within_head_tracking_range);
+    
+    bool ball_far_left_or_right = (data->ball.yawToRobot > 0.8 || data->ball.yawToRobot < -0.8);
+    tree->setEntry<bool>("ball_far_left_or_right", ball_far_left_or_right);
     data->ball.pitchToRobot = asin(config->robotHeight / data->ball.range);
 
     // mark ball as lost if long time no see

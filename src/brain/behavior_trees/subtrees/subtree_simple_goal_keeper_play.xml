@@ -1,0 +1,56 @@
+<root BTCPP_format="4" >
+   <include path="./subtree_find_ball.xml" />
+   <include path="./subtree_cam_find_and_track_ball.xml" />
+   <BehaviorTree ID="SimpleGoalKeeperPlay">
+      <ReactiveSequence name="simple_goalkeeper_behavior">
+         <!-- Always maintain position at x=-6.5, y=0 -->
+         <MoveToPoseOnField 
+            x="-6.5" 
+            y="0.0" 
+            theta="0.0" 
+            long_range_threshold="100.0" 
+            turn_threshold="0.3" 
+            vx_limit="1.0" 
+            vy_limit="1.0" 
+            vtheta_limit="1.0" 
+            x_tolerance="0.3" 
+            y_tolerance="0.3" 
+            theta_tolerance="0.3" 
+         />
+         
+         <!-- Self-locate for accuracy -->
+         <SelfLocate mode="penalty_point_localize" _while="odom_calibrated" />
+         
+         <!-- Use striker play's ball finding pattern -->
+         <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
+         
+         <!-- Use physical movement to find ball as fallback -->
+         <SubTree ID="FindBall" _autoremap="true" _while="!ball_location_known" />
+         
+         <!-- Action based on ball position and distance -->
+         <ReactiveSequence name="position_and_distance_based_action">
+            <IfThenElse>
+               <ScriptCondition name="Ball in opponent half?" code="ball_x > 0.0" />
+               <Sequence name="ball_in_our_half">
+                  <IfThenElse>
+                     <ScriptCondition name="Ball within 4 meters?" code="ball_range <= 4.0" />
+                     <Sequence name="chase_ball">
+                        <PrintMsg msg="Ball in our half and within 4 meters, starting chase with dist=0.1" />
+                        <Chase 
+                           vx_limit="0.8" 
+                           vy_limit="0.6" 
+                           vtheta_limit="1.0" 
+                           dist="0.1" 
+                        />
+                     </Sequence>
+                     <Sequence name="stay_at_position">
+                        <PrintMsg msg="Ball in our half but farther than 4 meters, maintaining position" />
+                        <SetVelocity x="0" y="0" theta="0" />
+                     </Sequence>
+                  </IfThenElse>
+               </Sequence>
+            </IfThenElse>
+         </ReactiveSequence>
+      </ReactiveSequence>
+   </BehaviorTree>
+</root> 

@@ -1,7 +1,7 @@
 <root BTCPP_format="4">
     <include path="./subtrees/subtree_cam_find_and_track_ball.xml" />
     <include path="./subtrees/subtree_striker_play.xml" />
-    <include path="./subtrees/subtree_advanced_goal_keeper_play.xml" />
+    <include path="./subtrees/subtree_simple_goal_keeper_play.xml" />
     <include path="./subtrees/subtree_striker_freekick.xml" />
     <include path="./subtrees/subtree_goal_keeper_freekick.xml" />
     <include path="./subtrees/subtree_auto_standup_and_locate.xml" />
@@ -48,7 +48,7 @@
                         <ReactiveSequence _while="gc_game_state=='PLAY'" name="play">
                             <SelfLocate mode="penalty_point_localize" _while="odom_calibrated" />
                             <SubTree ID="StrikerPlay" _autoremap="true" _while="player_role == 'striker'" />
-                            <SubTree ID="AdvancedGoalKeeperPlay" _autoremap="true" _while="player_role == 'goal_keeper'" />
+                            <SubTree ID="SimpleGoalKeeperPlay" _autoremap="true" _while="player_role == 'goal_keeper'" />
                         </ReactiveSequence>
 
                         <ReactiveSequence _while="gc_game_state=='END'" name="end">

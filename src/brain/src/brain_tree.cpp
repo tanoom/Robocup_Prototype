@@ -42,6 +42,8 @@ void BrainTree::init()
     REGISTER_BUILDER(WaveHand)
     REGISTER_BUILDER(GoBackInField)
     REGISTER_BUILDER(TurnOnSpot)
+    REGISTER_BUILDER(TurnByAngle)
+    REGISTER_BUILDER(TurnToAngle)
     REGISTER_BUILDER(GoToTeammateBall)
     REGISTER_BUILDER(FollowTeammate)
 
@@ -49,6 +51,7 @@ void BrainTree::init()
     REGISTER_BUILDER(GoalKeeperPosition)
     REGISTER_BUILDER(GoalKeeperIntercept)
     REGISTER_BUILDER(GoalKeeperTrackAndAdjust)
+    REGISTER_BUILDER(GoalKeeperYAxisDefense)
 
     // Action Nodes for debug
     REGISTER_BUILDER(PrintMsg)
@@ -69,6 +72,16 @@ void BrainTree::initEntry()
     setEntry<string>("decision", "");
     setEntry<string>("defend_decision", "chase");
     setEntry<double>("ball_range", 0);
+    setEntry<double>("ball_yaw_to_robot", 0.0);
+    setEntry<double>("ball_x", 0.0);
+    setEntry<double>("ball_y", 0.0);
+    setEntry<double>("robot_pose_theta", 0.0);
+    setEntry<double>("robot_pose_x", 0.0);
+    setEntry<double>("robot_pose_y", 0.0);
+    setEntry<bool>("is_closer_to_forward_orientation", true);
+    setEntry<bool>("is_facing_forward", true);
+    setEntry<bool>("ball_within_head_tracking_range", false);
+    setEntry<bool>("ball_far_left_or_right", false);
 
     setEntry<bool>("gamecontroller_isKickOff", true);
     setEntry<bool>("gamecontroller_isKickOffExecuted", true);
@@ -768,7 +781,7 @@ NodeStatus SelfLocate::tick()
         auto elapsed = (currentTime - lastPenaltyLocalizeTime).seconds();
 
         if (elapsed < 3.0) { // 3秒内不允许重复调用
-            prtDebug("penalty_point_localize 调用过于频繁，距离上次调用仅 " + to_string(elapsed) + " 秒，需要等待 3 秒间隔");
+            //prtDebug("penalty_point_localize 调用过于频繁，距离上次调用仅 " + to_string(elapsed) + " 秒，需要等待 3 秒间隔");
             return NodeStatus::SUCCESS; // 直接返回成功，不执行定位
         }
 
@@ -1615,4 +1628,328 @@ double FollowTeammate::calculateBallViewingAngle(double robotX, double robotY, d
 {
     // Calculate angle to face the ball
     return atan2(ballY - robotY, ballX - robotX);
+}
+
+// ===== TurnByAngle Implementation =====
+
+NodeStatus TurnByAngle::onStart()
+{
+    _startTime = brain->get_clock()->now();
+    _startAngle = brain->data->robotPoseToOdom.theta;
+    
+    // Get input parameters
+    _turnAngle = getInput<double>("rad").value();
+    _angularVelocity = getInput<double>("angular_velocity").value();
+    _tolerance = getInput<double>("tolerance").value();
+    _timeoutMs = getInput<int>("timeout_ms").value();
+    
+    // Calculate target angle
+    _targetAngle = _startAngle + _turnAngle;
+    
+    // Start turning with specified angular velocity
+    double initialVelocity = _turnAngle > 0 ? _angularVelocity : -_angularVelocity;
+    brain->client->setVelocity(0, 0, initialVelocity);
+    
+    brain->log->log("debug/turn_by_angle", rerun::TextLog(format(
+        "Starting turn: start_angle=%.3f, turn_angle=%.3f, target_angle=%.3f, velocity=%.3f",
+        _startAngle, _turnAngle, _targetAngle, initialVelocity
+    )));
+    
+    return NodeStatus::RUNNING;
+}
+
+NodeStatus TurnByAngle::onRunning()
+{
+    double currentAngle = brain->data->robotPoseToOdom.theta;
+    double turnTime = brain->msecsSince(_startTime);
+    
+    // Check timeout
+    if (turnTime > _timeoutMs) {
+        brain->client->setVelocity(0, 0, 0);
+        brain->log->log("debug/turn_by_angle", rerun::TextLog("Turn timeout"));
+        return NodeStatus::FAILURE;
+    }
+    
+    // Calculate angle difference to target
+    double angleDiff = toPInPI(_targetAngle - currentAngle);
+    
+    // Check if we've reached the target
+    if (fabs(angleDiff) < _tolerance) {
+        brain->client->setVelocity(0, 0, 0);
+        brain->log->log("debug/turn_by_angle", rerun::TextLog(format(
+            "Turn completed: current_angle=%.3f, target_angle=%.3f, diff=%.3f",
+            currentAngle, _targetAngle, angleDiff
+        )));
+        return NodeStatus::SUCCESS;
+    }
+    
+    // Continue turning with proportional control
+    double velocityScale = fabs(angleDiff) > 0.3 ? 1.0 : fabs(angleDiff) / 0.3; // Slow down near target
+    double angularVel = (angleDiff > 0 ? _angularVelocity : -_angularVelocity) * velocityScale;
+    
+    brain->client->setVelocity(0, 0, angularVel);
+    
+    brain->log->log("debug/turn_by_angle", rerun::TextLog(format(
+        "Turning: current=%.3f, target=%.3f, diff=%.3f, vel=%.3f, time=%.0f",
+        currentAngle, _targetAngle, angleDiff, angularVel, turnTime
+    )));
+    
+    return NodeStatus::RUNNING;
+}
+
+void TurnByAngle::onHalted()
+{
+    brain->client->setVelocity(0, 0, 0);
+    brain->log->log("debug/turn_by_angle", rerun::TextLog("Turn halted"));
+}
+
+// ===== TurnToAngle Implementation =====
+
+NodeStatus TurnToAngle::onStart()
+{
+    _startTime = brain->get_clock()->now();
+    
+    // Get input parameters
+    _targetAngle = getInput<double>("target_angle").value();
+    _angularVelocity = getInput<double>("angular_velocity").value();
+    _tolerance = getInput<double>("tolerance").value();
+    _timeoutMs = getInput<int>("timeout_ms").value();
+    
+    double currentAngle = brain->data->robotPoseToField.theta;
+    double angleDiff = toPInPI(_targetAngle - currentAngle);
+    
+    // Start turning with specified angular velocity
+    double initialVelocity = angleDiff > 0 ? _angularVelocity : -_angularVelocity;
+    brain->client->setVelocity(0, 0, initialVelocity);
+    
+    brain->log->log("debug/turn_to_angle", rerun::TextLog(format(
+        "Starting turn to angle: current=%.3f, target=%.3f, diff=%.3f, velocity=%.3f",
+        currentAngle, _targetAngle, angleDiff, initialVelocity
+    )));
+    
+    return NodeStatus::RUNNING;
+}
+
+NodeStatus TurnToAngle::onRunning()
+{
+    double currentAngle = brain->data->robotPoseToField.theta;
+    double turnTime = brain->msecsSince(_startTime);
+    
+    // Check timeout
+    if (turnTime > _timeoutMs) {
+        brain->client->setVelocity(0, 0, 0);
+        brain->log->log("debug/turn_to_angle", rerun::TextLog("Turn timeout"));
+        return NodeStatus::FAILURE;
+    }
+    
+    // Calculate angle difference to target
+    double angleDiff = toPInPI(_targetAngle - currentAngle);
+    
+    // Check if we've reached the target
+    if (fabs(angleDiff) < _tolerance) {
+        brain->client->setVelocity(0, 0, 0);
+        brain->log->log("debug/turn_to_angle", rerun::TextLog(format(
+            "Turn completed: current_angle=%.3f, target_angle=%.3f, diff=%.3f",
+            currentAngle, _targetAngle, angleDiff
+        )));
+        return NodeStatus::SUCCESS;
+    }
+    
+    // Continue turning with proportional control
+    double velocityScale = fabs(angleDiff) > 0.3 ? 1.0 : fabs(angleDiff) / 0.3; // Slow down near target
+    double angularVel = (angleDiff > 0 ? _angularVelocity : -_angularVelocity) * velocityScale;
+    
+    brain->client->setVelocity(0, 0, angularVel);
+    
+    brain->log->log("debug/turn_to_angle", rerun::TextLog(format(
+        "Turning: current=%.3f, target=%.3f, diff=%.3f, vel=%.3f, time=%.0f",
+        currentAngle, _targetAngle, angleDiff, angularVel, turnTime
+    )));
+    
+    return NodeStatus::RUNNING;
+}
+
+void TurnToAngle::onHalted()
+{
+    brain->client->setVelocity(0, 0, 0);
+    brain->log->log("debug/turn_to_angle", rerun::TextLog("Turn halted"));
+}
+
+// ------------------------------- GOAL KEEPER Y-AXIS DEFENSE IMPLEMENTATION -------------------------------
+
+NodeStatus GoalKeeperYAxisDefense::onStart()
+{
+    // Get parameters
+    getInput("base_x", _baseX);
+    getInput("base_y", _baseY);
+    getInput("base_theta", _baseTheta);
+    getInput("prediction_distance", _predictionDistance);
+    getInput("reaction_speed", _reactionSpeed);
+    getInput("vx_limit", _vxLimit);
+    getInput("vy_limit", _vyLimit);
+    getInput("vtheta_limit", _vthetaLimit);
+
+    // Initialize state
+    _phase = ORIENT_Y_AXIS;
+    _ballDirection = BALL_UNKNOWN;
+    _lastBallX = 0.0;
+    _lastBallY = 0.0;
+    _lastBallTime = brain->get_clock()->now();
+
+    brain->log->logToScreen("GoalKeeperYAxisDefense", "Starting Y-axis defense strategy", 0x00FF00FF);
+    return NodeStatus::RUNNING;
+}
+
+NodeStatus GoalKeeperYAxisDefense::onRunning()
+{
+    // Check if ball is detected
+    if (!brain->tree->getEntry<bool>("ball_location_known")) {
+        brain->log->logToScreen("GoalKeeperYAxisDefense", "Ball not detected, maintaining position", 0xFFFF00FF);
+        brain->client->setVelocity(0, 0, 0);
+        return NodeStatus::RUNNING;
+    }
+
+    double ballRange = brain->data->ball.range;
+    double currentX = brain->data->robotPoseToField.x;
+    double currentY = brain->data->robotPoseToField.y;
+    double currentTheta = brain->data->robotPoseToField.theta;
+
+    // Phase 1: Orient along Y-axis
+    if (_phase == ORIENT_Y_AXIS) {
+        // Calculate angle difference to Y-axis orientation
+        double angleDiff = toPInPI(_baseTheta - currentTheta);
+        
+        // Adjust Y position based on ball Y position
+        double ballY = brain->data->ball.posToField.y;
+        double targetY = _baseY + (ballY * 0.3); // Adjust Y position based on ball
+        targetY = cap(targetY, 1.0, -1.0); // Limit Y adjustment
+        
+        // Check if we're properly oriented and positioned
+        bool orientedCorrectly = fabs(angleDiff) < 0.1; // Within ~6 degrees
+        bool positionedCorrectly = fabs(currentX - _baseX) < 0.2 && fabs(currentY - targetY) < 0.2;
+        
+        if (orientedCorrectly && positionedCorrectly) {
+            _phase = PREDICT_AND_REACT;
+            brain->log->logToScreen("GoalKeeperYAxisDefense", "Y-axis orientation complete, starting prediction", 0x00FF00FF);
+        } else {
+            // Move to proper position with Y-axis orientation
+            brain->client->moveToPoseOnField(_baseX, targetY, _baseTheta,
+                                           2.0, 0.4, // long_range_threshold, turn_threshold
+                                           _vxLimit * 0.6, _vyLimit * 0.6, _vthetaLimit * 0.8,
+                                           0.2, 0.2, 0.1); // tolerances
+            
+            brain->log->logToScreen("GoalKeeperYAxisDefense",
+                format("Orienting to Y-axis: angle_diff=%.2f, pos=(%.2f,%.2f)", angleDiff, currentX, currentY), 0x00FFFFFF);
+        }
+        return NodeStatus::RUNNING;
+    }
+
+    // Phase 2: Predict ball direction and react
+    if (_phase == PREDICT_AND_REACT) {
+        // Predict ball direction
+        _ballDirection = predictBallDirection();
+        
+        // React based on prediction
+        if (ballRange <= _predictionDistance) {
+            _phase = INTERCEPT;
+            brain->log->logToScreen("GoalKeeperYAxisDefense", "Ball close enough, starting intercept", 0xFF0000FF);
+        } else {
+            executeReaction();
+        }
+        return NodeStatus::RUNNING;
+    }
+
+    // Phase 3: Intercept the ball
+    if (_phase == INTERCEPT) {
+        executeReaction();
+        return NodeStatus::RUNNING;
+    }
+
+    return NodeStatus::RUNNING;
+}
+
+GoalKeeperYAxisDefense::BallDirection GoalKeeperYAxisDefense::predictBallDirection()
+{
+    double currentBallX = brain->data->ball.posToField.x;
+    double currentBallY = brain->data->ball.posToField.y;
+    rclcpp::Time currentTime = brain->get_clock()->now();
+    
+    // Calculate time difference
+    double timeDiff = (currentTime - _lastBallTime).seconds();
+    
+    if (timeDiff < 0.1) { // Too little time passed
+        return _ballDirection;
+    }
+    
+    // Calculate ball velocity
+    double ballVelX = (currentBallX - _lastBallX) / timeDiff;
+    double ballVelY = (currentBallY - _lastBallY) / timeDiff;
+    
+    // Update last position and time
+    _lastBallX = currentBallX;
+    _lastBallY = currentBallY;
+    _lastBallTime = currentTime;
+    
+    // Determine direction based on Y velocity (since we're Y-axis oriented)
+    // When robot is Y-axis oriented, front/back corresponds to +Y/-Y direction
+    const double velocityThreshold = 0.1; // m/s
+    
+    if (fabs(ballVelY) < velocityThreshold) {
+        return BALL_STATIONARY;
+    } else if (ballVelY > 0) {
+        // Ball moving toward positive Y (front of robot)
+        return BALL_MOVING_FORWARD;
+    } else {
+        // Ball moving toward negative Y (back of robot)
+        return BALL_MOVING_BACKWARD;
+    }
+}
+
+void GoalKeeperYAxisDefense::executeReaction()
+{
+    double currentX = brain->data->robotPoseToField.x;
+    double currentY = brain->data->robotPoseToField.y;
+    double currentTheta = brain->data->robotPoseToField.theta;
+    
+    // Always maintain Y-axis orientation
+    double angleDiff = toPInPI(_baseTheta - currentTheta);
+    double vtheta = angleDiff * 0.8;
+    vtheta = cap(vtheta, _vthetaLimit, -_vthetaLimit);
+    
+    // Maintain X position at goal line
+    double vx = ((_baseX - currentX) * 0.5);
+    vx = cap(vx, _vxLimit * 0.3, -_vxLimit * 0.3); // Gentle X adjustment
+    
+    double vy = 0.0;
+    
+    // React based on predicted ball direction - move forward/backward along Y-axis
+    if (_ballDirection == BALL_MOVING_FORWARD) {
+        // Ball moving toward front (positive Y) - move forward rapidly along Y-axis
+        vy = _vyLimit * _reactionSpeed;
+        brain->log->logToScreen("GoalKeeperYAxisDefense", "Ball moving to front - MOVING FORWARD (Y+)!", 0xFF0000FF);
+    } else if (_ballDirection == BALL_MOVING_BACKWARD) {
+        // Ball moving toward back (negative Y) - move backward rapidly along Y-axis
+        vy = -_vyLimit * _reactionSpeed;
+        brain->log->logToScreen("GoalKeeperYAxisDefense", "Ball moving to back - MOVING BACKWARD (Y-)!", 0xFF0000FF);
+    } else {
+        // Ball stationary or unknown - slight adjustment based on ball Y position
+        double ballY = brain->data->ball.posToField.y;
+        double targetY = _baseY + (ballY * 0.2); // Small adjustment factor
+        targetY = cap(targetY, 1.0, -1.0);
+        vy = (targetY - currentY) * 0.3;
+        vy = cap(vy, _vyLimit * 0.4, -_vyLimit * 0.4);
+        brain->log->logToScreen("GoalKeeperYAxisDefense", "Ball stationary - minor Y adjustment", 0x00FFFFFF);
+    }
+    
+    // Apply velocity commands
+    brain->client->setVelocity(vx, vy, vtheta);
+    
+    brain->log->logToScreen("GoalKeeperYAxisDefense",
+        format("Direction: %d, Velocity: (%.2f, %.2f, %.2f)", _ballDirection, vx, vy, vtheta), 0x00FFFFFF);
+}
+
+void GoalKeeperYAxisDefense::onHalted()
+{
+    brain->client->setVelocity(0, 0, 0);
+    brain->log->logToScreen("GoalKeeperYAxisDefense", "Y-axis defense halted", 0xFFFF00FF);
 }
