@@ -47,6 +47,11 @@ public:
         int masterPlayerId;
         int possessionPlayerId;
         bool hasValidCollaborationInfo;
+        // 动态角色分配信息
+        int dynamicRole;        // 0=striker, 1=goal_keeper, 2=striker_follower (-1 if unknown)
+        int goalKeeperPlayerId; // Player ID assigned as goal keeper (-1 if unknown)
+        int strikerPlayerId;    // Player ID assigned as main striker (-1 if unknown)
+        int followerPlayerId;   // Player ID assigned as follower striker (-1 if unknown)
     };
 
     BrainCommunication(Brain *argBrain);

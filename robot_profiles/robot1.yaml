@@ -3,7 +3,7 @@ brain:
     collaboration_role: master
     field_type: adult_size
     player_id: 0
-    player_role: goal_keeper
+    player_role: striker
     player_start_pos: left
     team_id: 31
   rerunLog:
@@ -15,7 +15,7 @@ brain:
     robot_height: 1.0
     vx_factor: 0.9
     yaw_offset: 0.1
-description: Goalkeeper, left starting position
+description: Striker, left starting position
 name: 'Robot #1'
 network:
   interfaces:

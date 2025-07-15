@@ -290,9 +290,11 @@ void Brain::calculateBallCost() {
 void Brain::processMasterDecision() {
     // Collect cost information from all robots (including self)
     std::vector<std::pair<int, double>> robotCosts;
+    std::vector<std::pair<int, Pose2D>> robotPoses; // For role assignment
 
-    // Add our own cost
+    // Add our own cost and pose
     robotCosts.push_back({config->playerId, data->ballCost});
+    robotPoses.push_back({config->playerId, data->robotPoseToField});
 
     // Add teammates' costs
     auto startTime = get_clock()->now();
@@ -317,10 +319,12 @@ void Brain::processMasterDecision() {
 
     for (const auto& teammate : teammates) {
         robotCosts.push_back({teammate.playerId, teammate.ballCost});
-        prtDebug(format("队友信息: ID=%d, cost=%.2f", teammate.playerId, teammate.ballCost));
+        robotPoses.push_back({teammate.playerId, {teammate.robotPoseX, teammate.robotPoseY, teammate.robotPoseTheta}});
+        prtDebug(format("队友信息: ID=%d, cost=%.2f, pose=(%.2f,%.2f,%.2f)", 
+            teammate.playerId, teammate.ballCost, teammate.robotPoseX, teammate.robotPoseY, teammate.robotPoseTheta));
     }
 
-    // Find robot with minimum cost
+    // Find robot with minimum cost for ball possession
     int bestRobotId = config->playerId;
     double minCost = data->ballCost;
 
@@ -337,21 +341,92 @@ void Brain::processMasterDecision() {
         int oldPossessionId = data->possessionPlayerId;
         data->possessionPlayerId = -1;
         data->hasBallPossession = false;
-        prtDebug(format("Master决策: 所有机器人成本都是无穷，清除球权分配 (之前分配给: %d)", oldPossessionId));
+        
+        // Clear role assignments when no ball possession
+        data->strikerPlayerId = -1;
+        data->goalKeeperPlayerId = -1; 
+        data->followerPlayerId = -1;
+        data->dynamicRole = -1;
+        
+        prtDebug(format("Master决策: 所有机器人成本都是无穷，清除球权和角色分配 (之前分配给: %d)", oldPossessionId));
     } else {
         // Update possession assignment
         int oldPossessionId = data->possessionPlayerId;
         data->possessionPlayerId = bestRobotId;
         data->hasBallPossession = (bestRobotId == config->playerId);
 
+        // Dynamic Role Assignment Logic
+        // 1. Robot with ball possession becomes main striker
+        data->strikerPlayerId = bestRobotId;
+        
+        // 2. Among remaining robots, find the one nearest to our goal (smallest X coordinate)
+        // Our goal is at negative X direction (-fieldDimensions.length/2)
+        int goalKeeperCandidateId = -1;
+        double closestToGoalX = std::numeric_limits<double>::max();
+        
+        // 3. Find remaining robot for follower role
+        std::vector<int> remainingRobots;
+        
+        for (const auto& robotPose : robotPoses) {
+            int robotId = robotPose.first;
+            if (robotId != bestRobotId) { // Exclude the striker
+                remainingRobots.push_back(robotId);
+                
+                // Check if this robot is closer to our goal
+                double robotX = robotPose.second.x;
+                if (robotX < closestToGoalX) {
+                    closestToGoalX = robotX;
+                    goalKeeperCandidateId = robotId;
+                }
+            }
+        }
+        
+        data->goalKeeperPlayerId = goalKeeperCandidateId;
+        
+        // The remaining robot becomes follower
+        for (int robotId : remainingRobots) {
+            if (robotId != goalKeeperCandidateId) {
+                data->followerPlayerId = robotId;
+                break;
+            }
+        }
+        
+        // Set our own dynamic role
+        if (config->playerId == data->strikerPlayerId) {
+            data->dynamicRole = 0; // striker
+        } else if (config->playerId == data->goalKeeperPlayerId) {
+            data->dynamicRole = 1; // goal_keeper
+        } else if (config->playerId == data->followerPlayerId) {
+            data->dynamicRole = 2; // striker_follower
+        } else {
+            data->dynamicRole = -1; // unknown
+        }
+
         // Log decision
-        prtDebug(format("Master决策: 机器人 %d 应该占据球 (cost=%.2f), 之前分配给: %d",
-            bestRobotId, minCost, oldPossessionId));
+        prtDebug(format("Master决策: 球权=%d (cost=%.2f), 角色分配: 主攻=%d, 守门=%d, 跟随=%d, 自己角色=%d", 
+            bestRobotId, minCost, data->strikerPlayerId, data->goalKeeperPlayerId, 
+            data->followerPlayerId, data->dynamicRole));
+            
+        // Log roles to rerun for visualization
+        string roleStr = "Unknown";
+        if (data->dynamicRole == 0) roleStr = "Striker";
+        else if (data->dynamicRole == 1) roleStr = "Goalkeeper";
+        else if (data->dynamicRole == 2) roleStr = "Follower";
+        
+        log->logToScreen("collaboration/master_role", 
+            format("Master Robot %d: Role=%s, Ball Possession=%d, Cost=%.2f", 
+                config->playerId, roleStr.c_str(), data->possessionPlayerId, data->ballCost), 
+            0x00FF00FF);
+            
+        log->logToScreen("collaboration/role_assignments",
+            format("Role Assignments: Striker=%d, Goalkeeper=%d, Follower=%d", 
+                data->strikerPlayerId, data->goalKeeperPlayerId, data->followerPlayerId),
+            0xFFFFFFFF);
     }
 }
 
 void Brain::processSlaveUpdates() {
-    // Get possession assignment from master
+    // Get possession assignment and role assignments from master
     auto startTime = get_clock()->now();
     auto teammates = communication->getTeammateCollaborationInfo();
     auto endTime = get_clock()->now();
@@ -373,18 +448,53 @@ void Brain::processSlaveUpdates() {
 
     bool foundMaster = false;
     for (const auto& teammate : teammates) {
-        prtDebug(format("队友信息: ID=%d, masterID=%d, possessionID=%d",
-            teammate.playerId, teammate.masterPlayerId, teammate.possessionPlayerId));
+        prtDebug(format("队友信息: ID=%d, masterID=%d, possessionID=%d, 角色分配: 主攻=%d, 守门=%d, 跟随=%d",
+            teammate.playerId, teammate.masterPlayerId, teammate.possessionPlayerId,
+            teammate.strikerPlayerId, teammate.goalKeeperPlayerId, teammate.followerPlayerId));
 
         // Check if this teammate is the master
         if (teammate.masterPlayerId == teammate.playerId) {
             foundMaster = true;
+            
+            // Update possession status
             int oldPossessionId = data->possessionPlayerId;
-            // Update our possession status based on master's decision
             data->possessionPlayerId = teammate.possessionPlayerId;
             data->hasBallPossession = (teammate.possessionPlayerId == config->playerId);
-            prtDebug(format("从Master(ID=%d)收到决策: possession从%d更新为%d",
-                teammate.playerId, oldPossessionId, teammate.possessionPlayerId));
+            
+            // Update role assignments from master
+            data->strikerPlayerId = teammate.strikerPlayerId;
+            data->goalKeeperPlayerId = teammate.goalKeeperPlayerId;
+            data->followerPlayerId = teammate.followerPlayerId;
+            
+            // Determine our own dynamic role
+            if (config->playerId == data->strikerPlayerId) {
+                data->dynamicRole = 0; // striker
+            } else if (config->playerId == data->goalKeeperPlayerId) {
+                data->dynamicRole = 1; // goal_keeper
+            } else if (config->playerId == data->followerPlayerId) {
+                data->dynamicRole = 2; // striker_follower
+            } else {
+                data->dynamicRole = -1; // unknown
+            }
+            
+            prtDebug(format("从Master(ID=%d)收到决策: possession从%d更新为%d, 我的角色=%d",
+                teammate.playerId, oldPossessionId, teammate.possessionPlayerId, data->dynamicRole));
+                
+            // Log slave role to rerun for visualization
+            string roleStr = "Unknown";
+            if (data->dynamicRole == 0) roleStr = "Striker";
+            else if (data->dynamicRole == 1) roleStr = "Goalkeeper";
+            else if (data->dynamicRole == 2) roleStr = "Follower";
+            
+            log->logToScreen("collaboration/slave_role", 
+                format("Slave Robot %d: Role=%s, Ball Possession=%d, Cost=%.2f", 
+                    config->playerId, roleStr.c_str(), data->possessionPlayerId, data->ballCost), 
+                0x0000FFFF);
+                
+            log->logToScreen("collaboration/received_assignments",
+                format("Received Assignments: Striker=%d, Goalkeeper=%d, Follower=%d", 
+                    data->strikerPlayerId, data->goalKeeperPlayerId, data->followerPlayerId),
+                0xFFFF00FF);
             break;
         }
     }
@@ -393,14 +503,17 @@ void Brain::processSlaveUpdates() {
         prtDebug("警告: 没有找到Master机器人的信息");
     }
 
-    // Log possession status (movement will be handled by behavior tree)
+    // Log possession and role status
     static int status_counter = 0;
     if (status_counter % 100 == 0) { // 每100次输出一次状态
-        if (data->hasBallPossession) {
-            prtDebug("我拥有球权，正常执行策略");
-        } else {
-            prtDebug(format("机器人 %d 拥有球权，我保持静止", data->possessionPlayerId));
-        }
+        string roleStr = "未知";
+        if (data->dynamicRole == 0) roleStr = "主攻";
+        else if (data->dynamicRole == 1) roleStr = "守门";
+        else if (data->dynamicRole == 2) roleStr = "跟随";
+        
+        prtDebug(format("当前状态: 角色=%s, 球权机器人=%d, %s", 
+            roleStr.c_str(), data->possessionPlayerId,
+            data->hasBallPossession ? "我拥有球权" : "我没有球权"));
     }
     status_counter++;
 }
@@ -430,6 +543,15 @@ void Brain::updateMemory()
     tree->setEntry<int>("possession_player_id", data->possessionPlayerId);
     tree->setEntry<double>("ball_cost", data->ballCost);
     tree->setEntry<bool>("is_master_robot", config->collaborationRole == "master");
+    
+    // Update dynamic role assignment blackboard entries
+    tree->setEntry<int>("dynamic_role", data->dynamicRole);
+    tree->setEntry<int>("goal_keeper_player_id", data->goalKeeperPlayerId);
+    tree->setEntry<int>("striker_player_id", data->strikerPlayerId);
+    tree->setEntry<int>("follower_player_id", data->followerPlayerId);
+    tree->setEntry<bool>("is_dynamic_striker", data->dynamicRole == 0);
+    tree->setEntry<bool>("is_dynamic_goal_keeper", data->dynamicRole == 1);
+    tree->setEntry<bool>("is_dynamic_follower", data->dynamicRole == 2);
 
     updateBallMemory();
 
@@ -450,6 +572,22 @@ void Brain::updateMemory()
             tree->setEntry<bool>("wait_for_opponent_kickoff", false);
         }
     }
+
+    // Log possession and role status periodically
+    static int status_counter = 0;
+    if (status_counter % 100 == 0) { // Log every 100 ticks
+        string roleStr = "Unknown";
+        if (data->dynamicRole == 0) roleStr = "Striker";
+        else if (data->dynamicRole == 1) roleStr = "Goalkeeper";
+        else if (data->dynamicRole == 2) roleStr = "Follower";
+        
+        log->logToScreen("collaboration/current_status",
+            format("Current Status: Role=%s, Ball Owner=%d, %s", 
+                roleStr.c_str(), data->possessionPlayerId,
+                data->hasBallPossession ? "I have ball possession" : "I don't have ball possession"),
+            0x0000FFFF);
+    }
+    status_counter++;
 }
 
 

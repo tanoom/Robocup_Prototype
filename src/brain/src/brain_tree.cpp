@@ -114,6 +114,15 @@ void BrainTree::initEntry()
     setEntry<int>("possession_player_id", -1);
     setEntry<double>("ball_cost", 0.0);
     setEntry<bool>("is_master_robot", false);
+    
+    // Dynamic role assignment related
+    setEntry<int>("dynamic_role", -1);                  // 0=striker, 1=goal_keeper, 2=striker_follower (-1 if unknown)
+    setEntry<int>("goal_keeper_player_id", -1);         // Player ID assigned as goal keeper (-1 if unknown)
+    setEntry<int>("striker_player_id", -1);             // Player ID assigned as main striker (-1 if unknown)
+    setEntry<int>("follower_player_id", -1);            // Player ID assigned as follower striker (-1 if unknown)
+    setEntry<bool>("is_dynamic_striker", false);        // True if this robot is dynamically assigned as striker
+    setEntry<bool>("is_dynamic_goal_keeper", false);    // True if this robot is dynamically assigned as goal keeper
+    setEntry<bool>("is_dynamic_follower", false);       // True if this robot is dynamically assigned as follower
 }
 
 void BrainTree::tick()

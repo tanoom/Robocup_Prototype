@@ -50,6 +50,12 @@ public:
     bool enterDampingPerformed = false;
     bool needManualRelocate = false;
 
+    // Dynamic role assignment data
+    int dynamicRole = -1;           // This robot's dynamically assigned role: 0=striker, 1=goal_keeper, 2=striker_follower (-1 if unknown)
+    int goalKeeperPlayerId = -1;    // Player ID assigned as goal keeper (-1 if unknown)
+    int strikerPlayerId = -1;       // Player ID assigned as main striker (-1 if unknown) 
+    int followerPlayerId = -1;      // Player ID assigned as follower striker (-1 if unknown)
+
     // Other objects on the field
     vector<GameObject> opponents = {}; // Records information about opponent players, including position, bounding box, etc.
     vector<GameObject> goalposts = {}; // Records information about goalposts, including position, bounding box, etc.

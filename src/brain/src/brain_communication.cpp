@@ -295,7 +295,11 @@ void BrainCommunication::spinDiscoveryReceiver() {
                 false,  // hasPossession
                 -1,     // masterPlayerId
                 -1,     // possessionPlayerId
-                false   // hasValidCollaborationInfo
+                false,  // hasValidCollaborationInfo
+                -1,     // dynamicRole
+                -1,     // goalKeeperPlayerId
+                -1,     // strikerPlayerId
+                -1      // followerPlayerId
             };
         }
     }
@@ -368,13 +372,20 @@ void BrainCommunication::unicastCommunication() {
         msg.masterPlayerId = (brain->config->collaborationRole == "master") ? brain->config->playerId : -1;
         msg.possessionPlayerId = brain->data->possessionPlayerId;
         
+        // 填充动态角色分配信息
+        msg.dynamicRole = brain->data->dynamicRole;
+        msg.goalKeeperPlayerId = brain->data->goalKeeperPlayerId;
+        msg.strikerPlayerId = brain->data->strikerPlayerId;
+        msg.followerPlayerId = brain->data->followerPlayerId;
+        
         // Debug: 输出协作信息状态
         static int debug_counter = 0;
         if (debug_counter % 100 == 0) { // 每100次输出一次，避免spam
             cout << YELLOW_CODE << format(
-                "DEBUG发送协作信息: role='%s', playerId=%d, masterPlayerId=%d, possessionPlayerId=%d, ballCost=%.2f",
+                "DEBUG发送协作信息: role='%s', playerId=%d, masterPlayerId=%d, possessionPlayerId=%d, ballCost=%.2f, 动态角色=%d, 角色分配(主攻=%d,守门=%d,跟随=%d)",
                 brain->config->collaborationRole.c_str(), brain->config->playerId,
-                msg.masterPlayerId, msg.possessionPlayerId, msg.ballCost) << RESET_CODE << endl;
+                msg.masterPlayerId, msg.possessionPlayerId, msg.ballCost, msg.dynamicRole,
+                msg.strikerPlayerId, msg.goalKeeperPlayerId, msg.followerPlayerId) << RESET_CODE << endl;
         }
         debug_counter++;
         
@@ -497,6 +508,12 @@ void BrainCommunication::spinCommunicationReceiver() {
                 it->second.masterPlayerId = msg.masterPlayerId;
                 it->second.possessionPlayerId = msg.possessionPlayerId;
                 it->second.hasValidCollaborationInfo = true;
+                
+                // 更新队友的动态角色分配信息
+                it->second.dynamicRole = msg.dynamicRole;
+                it->second.goalKeeperPlayerId = msg.goalKeeperPlayerId;
+                it->second.strikerPlayerId = msg.strikerPlayerId;
+                it->second.followerPlayerId = msg.followerPlayerId;
                 
                 it->second.lastUpdate = brain->get_clock()->now();
                 

@@ -23,6 +23,11 @@ struct TeamCommunicationMsg
     bool hasPossession;   // Whether this robot currently has ball possession
     int masterPlayerId;   // Player ID of the master robot (-1 if unknown)
     int possessionPlayerId; // Player ID of robot that should possess the ball (-1 if unknown)
+    // Dynamic role assignment (master robot decides roles based on possession and position)
+    int dynamicRole;      // 0=striker, 1=goal_keeper, 2=striker_follower (-1 if unknown)
+    int goalKeeperPlayerId; // Player ID assigned as goal keeper (-1 if unknown)
+    int strikerPlayerId;    // Player ID assigned as main striker (-1 if unknown)
+    int followerPlayerId;   // Player ID assigned as follower striker (-1 if unknown)
     // TODO: You can add more information you want to send to teammates
     int testInfo;
 };

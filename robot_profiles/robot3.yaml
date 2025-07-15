@@ -5,7 +5,7 @@ brain:
     player_id: 2
     player_role: goal_keeper
     player_start_pos: left
-    team_id: 29
+    team_id: 31
   rerunLog:
     enable: true
     img_interval: 1
@@ -21,10 +21,10 @@ network:
   interfaces:
   - 127.0.0.1
   - 192.168.10.101
-  - 192.168.10.104
+  - 192.168.10.102
 sftp:
-  host: 192.168.5.22
+  host: 192.168.5.177
   password: '123456'
   port: 22
-  remotePath: /home/booster/Workspace/playground/robocup_prototype
+  remotePath: /home/booster/Workspace/booster/robocup_prototype
   username: booster 

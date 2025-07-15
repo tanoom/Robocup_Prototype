@@ -2,6 +2,8 @@
     <include path="./subtrees/subtree_cam_find_and_track_ball.xml" />
     <include path="./subtrees/subtree_striker_play.xml" />
     <include path="./subtrees/subtree_advanced_goal_keeper_play.xml" />
+    <include path="./subtrees/subtree_simple_striker_play.xml" />
+    <include path="./subtrees/subtree_simple_goal_keeper_play.xml" />
     <include path="./subtrees/subtree_striker_freekick.xml" />
     <include path="./subtrees/subtree_goal_keeper_freekick.xml" />
     <include path="./subtrees/subtree_auto_standup_and_locate.xml" />
@@ -33,8 +35,8 @@
 
                         <ReactiveSequence _while="gc_game_state=='READY'" name="ready">
                             <CamScanField />
-                            <MoveToPoseOnField x="-2" y="-2" _while="player_role == 'striker'" vtheta_limit="2.0"  vx_limit="0.4" />
-                            <MoveToPoseOnField x="-5.5" y="0" _while="player_role == 'goal_keeper'" vtheta_limit="2.0"  vx_limit="0.4" />
+                            <MoveToPoseOnField x="-2" y="2" _while="is_dynamic_striker || is_dynamic_follower" vtheta_limit="2.0"  vx_limit="0.4" />
+                            <MoveToPoseOnField x="-6.5" y="0" _while="is_dynamic_goal_keeper" vtheta_limit="2.0"  vx_limit="0.4" />
                             <SelfLocate mode="trust_direction" />
                             <WaveHand _while="we_just_scored" action="start" />
                         </ReactiveSequence>
@@ -45,18 +47,22 @@
                             <WaveHand action="stop" />
                         </ReactiveSequence>
 
-                        <!-- 协作逻辑的核心部分：在PLAY状态下根据球权分配执行不同策略 -->
+                        <!-- 协作逻辑的核心部分：在PLAY状态下根据动态角色分配执行不同策略 -->
                         <ReactiveSequence _while="gc_game_state=='PLAY'" name="play">
                             <SelfLocate mode="penalty_point_localize" _while="odom_calibrated" />
 
-                            <!-- 持有球权的机器人执行正常策略 -->
-                            <ReactiveSequence _while="has_ball_possession" name="possession_play">
-                                <SubTree ID="StrikerPlay" _autoremap="true" _while="player_role == 'striker'" />
-                                <SubTree ID="AdvancedGoalKeeperPlay" _autoremap="true" _while="player_role == 'goal_keeper'" />
+                            <!-- 动态角色为守门员的机器人始终执行守门策略 -->
+                            <ReactiveSequence _while="is_dynamic_goal_keeper" name="dynamic_goalkeeper_play">
+                                <SubTree ID="SimpleGoalKeeperPlay" _autoremap="true" />
                             </ReactiveSequence>
 
-                            <!-- 没有球权的机器人跟随有球权的机器人 -->
-                            <ReactiveSequence _while="!has_ball_possession" name="no_possession">
+                            <!-- 动态角色为主攻击手且拥有球权的机器人执行攻击策略 -->
+                            <ReactiveSequence _while="is_dynamic_striker && has_ball_possession" name="striker_with_possession">
+                                <SubTree ID="SimpleStrikerPlay" _autoremap="true" />
+                            </ReactiveSequence>
+
+                            <!-- 动态角色为跟随者或主攻击手但没有球权的机器人跟随有球权的机器人 -->
+                            <ReactiveSequence _while="is_dynamic_follower" name="follower_play">
                                 <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
                                 <FollowTeammate
                                     follow_distance="2.0"
@@ -68,6 +74,12 @@
                                     position_tolerance="0.3"
                                     angle_tolerance="0.2" />
                                 <PrintMsg msg="跟随有球权的机器人" />
+                            </ReactiveSequence>
+
+                            <!-- 当角色分配未确定时，执行基本球追踪 -->
+                            <ReactiveSequence _while="dynamic_role == -1" name="role_unknown">
+                                <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
+                                <PrintMsg msg="角色未分配，执行球追踪" />
                             </ReactiveSequence>
                         </ReactiveSequence>
 
@@ -83,12 +95,14 @@
                             <SetVelocity />
                         </ReactiveSequence>
                         <ReactiveSequence _while="gc_game_sub_state=='GET_READY'">
-                            <!-- 在任意球情况下，只有拥有球权的机器人执行策略 -->
-                            <ReactiveSequence _while="has_ball_possession" name="freekick_possession">
-                                <SubTree ID="StrikerFreekick" _autoremap="true" _while="player_role == 'striker'" />
-                                <SubTree ID="GoalKeeperFreekick" _autoremap="true" _while="player_role == 'goal_keeper'"/>
+                            <!-- 在任意球情况下，根据动态角色分配执行策略 -->
+                            <ReactiveSequence _while="is_dynamic_goal_keeper" name="freekick_goalkeeper">
+                                <SubTree ID="GoalKeeperFreekick" _autoremap="true"/>
                             </ReactiveSequence>
-                            <ReactiveSequence _while="!has_ball_possession" name="freekick_no_possession">
+                            <ReactiveSequence _while="is_dynamic_striker && has_ball_possession" name="freekick_striker_possession">
+                                <SubTree ID="StrikerFreekick" _autoremap="true" />
+                            </ReactiveSequence>
+                            <ReactiveSequence _while="(is_dynamic_follower || (is_dynamic_striker && !has_ball_possession)) && !is_dynamic_goal_keeper" name="freekick_follower">
                                 <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
                                 <FollowTeammate
                                     follow_distance="2.0"
