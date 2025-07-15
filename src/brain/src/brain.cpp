@@ -185,11 +185,11 @@ void Brain::updateCollaboration() {
     // Update the timer
     lastCollaborationUpdateTime = currentTime;
 
-    // Only process collaboration if ball is detected
+    // Note: Continue collaboration processing even if ball is not detected locally
     if (!data->ballDetected) {
         static int no_ball_counter = 0;
         if (no_ball_counter % 500 == 0) { // 每500次输出一次
-            prtDebug(format("协作更新: 球未检测到，跳过协作逻辑 (role: %s)", config->collaborationRole.c_str()));
+            prtDebug(format("协作更新: 自己未检测到球，但继续协作逻辑以维持角色分配 (role: %s)", config->collaborationRole.c_str()));
         }
         no_ball_counter++;
     }
@@ -288,6 +288,9 @@ void Brain::calculateBallCost() {
 }
 
 void Brain::processMasterDecision() {
+    // Static timer to track how long we've been without valid ball information
+    static auto lastValidBallTimeStamp = get_clock()->now();
+    
     // Collect cost information from all robots (including self)
     std::vector<std::pair<int, double>> robotCosts;
     std::vector<std::pair<int, Pose2D>> robotPoses; // For role assignment
@@ -337,19 +340,30 @@ void Brain::processMasterDecision() {
 
     // Check if all costs are infinite (no one can see the ball)
     if (std::isinf(minCost)) {
-        // No one can see the ball, no possession assignment
+        // No one can see the ball, clear ball possession but keep role assignments
         int oldPossessionId = data->possessionPlayerId;
         data->possessionPlayerId = -1;
         data->hasBallPossession = false;
         
-        // Clear role assignments when no ball possession
-        data->strikerPlayerId = -1;
-        data->goalKeeperPlayerId = -1; 
-        data->followerPlayerId = -1;
-        data->dynamicRole = -1;
+        // Keep existing role assignments to maintain collaborative behavior
+        // Only clear them if we haven't had valid ball info for a very long time
+        auto currentTime = get_clock()->now();
+        auto timeSinceValidBall = (currentTime - lastValidBallTimeStamp).seconds();
         
-        prtDebug(format("Master决策: 所有机器人成本都是无穷，清除球权和角色分配 (之前分配给: %d)", oldPossessionId));
+        // Clear role assignments only after 30 seconds without any ball detection
+        if (timeSinceValidBall > 30.0) {
+            data->strikerPlayerId = -1;
+            data->goalKeeperPlayerId = -1; 
+            data->followerPlayerId = -1;
+            data->dynamicRole = -1;
+            prtDebug(format("Master决策: 30秒无球信息，清除所有角色分配 (之前球权: %d)", oldPossessionId));
+        } else {
+            prtDebug(format("Master决策: 无球信息但保持角色分配，自己角色=%d (之前球权: %d, 无球时间: %.1fs)", 
+                data->dynamicRole, oldPossessionId, timeSinceValidBall));
+        }
     } else {
+        // Reset the timer when we have valid ball information
+        lastValidBallTimeStamp = get_clock()->now();
         // Update possession assignment
         int oldPossessionId = data->possessionPlayerId;
         data->possessionPlayerId = bestRobotId;
