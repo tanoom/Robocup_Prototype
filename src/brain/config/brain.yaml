@@ -2,11 +2,11 @@ brain_node:
   ros__parameters:
     game:
       team_id: 31
-      player_id: 0
+      player_id: 2
       field_type: "adult_size"
-      player_role: "striker"
+      player_role: "goal_keeper"
       player_start_pos: "left"
-      collaboration_role: "master"
+      collaboration_role: "slave"
       
     robot:
       robot_height: 1.0
@@ -18,5 +18,5 @@ brain_node:
 
     rerunLog:
       enable: true
-      server_addr: "192.168.5.57:9876"
-      img_interval: 10
+      server_addr: "192.168.5.172:9876"
+      img_interval: 1

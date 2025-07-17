@@ -124,6 +124,9 @@ void BrainTree::initEntry()
     setEntry<bool>("is_dynamic_striker", false);        // True if this robot is dynamically assigned as striker
     setEntry<bool>("is_dynamic_goal_keeper", false);    // True if this robot is dynamically assigned as goal keeper
     setEntry<bool>("is_dynamic_follower", false);       // True if this robot is dynamically assigned as follower
+
+    // Goalkeeper positioning related
+    setEntry<bool>("is_at_goalkeeper_position", false); // True if robot is at the correct goalkeeper position
 }
 
 void BrainTree::tick()

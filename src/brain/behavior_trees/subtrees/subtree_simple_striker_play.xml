@@ -12,9 +12,9 @@
             <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
             <SelfLocate mode="penalty_point_localize" _while="odom_calibrated" />
             <IfThenElse>
-               <ScriptCondition name="Ball in opponent half?" code="ball_x > 0.0" />
-               <Sequence name="ball_in_opponent_half">
-                  <PrintMsg msg="Ball in opponent half, executing full striker logic" />
+               <ScriptCondition name="Robot in opponent half?" code="robot_pose_x > 0.0" />
+               <Sequence name="robot_in_opponent_half">
+                  <PrintMsg msg="Robot in opponent half, executing full striker logic" />
                   <ReactiveSequence>
                      <StrikerDecide decision_out="{decision}" decision_in="{decision}" chase_threshold="1.2" />
                      <SubTree ID="FindBall" _while="decision=='find'" _autoremap="true" />
@@ -26,8 +26,8 @@
                      <Kick vx_limit="1.0" vy_limit="0.4" min_msec_kick="300"/>
                   </Sequence>
                </Sequence>
-               <Sequence name="ball_in_our_half">
-                  <PrintMsg msg="Ball in our half, only chasing to target with closer distance" />
+               <Sequence name="robot_in_our_half">
+                  <PrintMsg msg="Robot in our half, only chasing to target with closer distance" />
                   <ChaseToTarget
                      vx_limit="1.0" 
                      vy_limit="1.0" 

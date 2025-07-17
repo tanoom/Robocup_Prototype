@@ -23,8 +23,67 @@ network:
   - 192.168.10.101
   - 192.168.10.102
 sftp:
-  host: 192.168.5.177
+  host: 192.168.5.20
   password: '123456'
   port: 22
-  remotePath: /home/booster/Workspace/booster/robocup_prototype
+  remotePath: /home/booster/Workspace/playground/robocup_prototype
   username: booster 
+vision:
+  show_res: false
+  camera:
+    type: realsense
+    intrin:
+      fx: 647.840088
+      fy: 646.649902
+      cx: 637.256348
+      cy: 362.757812
+      distortion_model: 1
+      distortion_coeffs:
+        - -0.0549737737
+        - 0.0632856414
+        - 0.000689056003
+        - 0.000954764138
+        - -0.0202241838
+    extrin:
+      -
+        - -0.00934416708
+        - 0.0111993654
+        - 0.999893665
+        - 0.012255922
+      -
+        - -0.999950588
+        - -0.00351710408
+        - -0.00930530485
+        - -0.0216439683
+      -
+        - 0.00341251632
+        - -0.999931097
+        - 0.0112316767
+        - 0.0116512068
+      -
+        - 0
+        - 0
+        - 0
+        - 1
+    pitch_compensation: 0
+    yaw_compensation: 0
+    z_compensation: 0
+  detection_model:
+    model_path: ./src/vision/model/best_orin.engine
+    confidence_threshold: 0.2
+  use_depth: true
+  ball_pose_estimator:
+    use_depth: false
+    radius: 1.109
+    down_sample_leaf_size: 0.01
+    cluster_distance_threshold: 0.01
+    fitting_distance_threshold: 0.01
+  human_like_pose_estimator:
+    use_depth: false
+    down_sample_leaf_size: 0.01
+    fitting_distance_threshold: 0.01
+    statistic_outlier_multiplier: 0.01
+  calibration:
+    handeye:
+      calibration_time: 2025-07-10-18-11-48
+      reprojection_error: 5.3736006195456234

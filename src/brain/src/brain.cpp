@@ -290,7 +290,10 @@ void Brain::calculateBallCost() {
 void Brain::processMasterDecision() {
     // Static timer to track how long we've been without valid ball information
     static auto lastValidBallTimeStamp = get_clock()->now();
-    
+
+    // Anti-oscillation threshold for ball cost difference
+    constexpr double POSSESSION_COST_DIFF_THRESHOLD = 3; // You can tune this value
+
     // Collect cost information from all robots (including self)
     std::vector<std::pair<int, double>> robotCosts;
     std::vector<std::pair<int, Pose2D>> robotPoses; // For role assignment
@@ -344,12 +347,12 @@ void Brain::processMasterDecision() {
         int oldPossessionId = data->possessionPlayerId;
         data->possessionPlayerId = -1;
         data->hasBallPossession = false;
-        
+
         // Keep existing role assignments to maintain collaborative behavior
         // Only clear them if we haven't had valid ball info for a very long time
         auto currentTime = get_clock()->now();
         auto timeSinceValidBall = (currentTime - lastValidBallTimeStamp).seconds();
-        
+
         // Clear role assignments only after 30 seconds without any ball detection
         if (timeSinceValidBall > 30.0) {
             data->strikerPlayerId = -1;
@@ -364,28 +367,55 @@ void Brain::processMasterDecision() {
     } else {
         // Reset the timer when we have valid ball information
         lastValidBallTimeStamp = get_clock()->now();
-        // Update possession assignment
+
+        // Anti-oscillation: Only update possession if cost difference is significant
         int oldPossessionId = data->possessionPlayerId;
-        data->possessionPlayerId = bestRobotId;
-        data->hasBallPossession = (bestRobotId == config->playerId);
+        double oldPossessionCost = std::numeric_limits<double>::infinity();
+        for (const auto& robotCost : robotCosts) {
+            if (robotCost.first == oldPossessionId) {
+                oldPossessionCost = robotCost.second;
+                break;
+            }
+        }
+
+        bool updatePossession = true;
+        if (oldPossessionId != -1 && oldPossessionId != bestRobotId && !std::isinf(oldPossessionCost)) {
+            double costDiff = minCost - oldPossessionCost;
+            if (costDiff > -POSSESSION_COST_DIFF_THRESHOLD) {
+                // The new best is not significantly better, do not update possession
+                updatePossession = false;
+                prtDebug(format("Master决策: 球权防抖动，bestId=%d, oldId=%d, bestCost=%.2f, oldCost=%.2f, diff=%.2f < 阈值%.2f，保持原球权",
+                    bestRobotId, oldPossessionId, minCost, oldPossessionCost, costDiff, POSSESSION_COST_DIFF_THRESHOLD));
+            }
+        }
+
+        if (updatePossession) {
+            data->possessionPlayerId = bestRobotId;
+            data->hasBallPossession = (bestRobotId == config->playerId);
+        } else {
+            // Keep previous possession
+            bestRobotId = oldPossessionId;
+            minCost = oldPossessionCost;
+            data->hasBallPossession = (bestRobotId == config->playerId);
+        }
 
         // Dynamic Role Assignment Logic
         // 1. Robot with ball possession becomes main striker
         data->strikerPlayerId = bestRobotId;
-        
+
         // 2. Among remaining robots, find the one nearest to our goal (smallest X coordinate)
         // Our goal is at negative X direction (-fieldDimensions.length/2)
         int goalKeeperCandidateId = -1;
         double closestToGoalX = std::numeric_limits<double>::max();
-        
+
         // 3. Find remaining robot for follower role
         std::vector<int> remainingRobots;
-        
+
         for (const auto& robotPose : robotPoses) {
             int robotId = robotPose.first;
             if (robotId != bestRobotId) { // Exclude the striker
                 remainingRobots.push_back(robotId);
-                
+
                 // Check if this robot is closer to our goal
                 double robotX = robotPose.second.x;
                 if (robotX < closestToGoalX) {
@@ -394,9 +424,9 @@ void Brain::processMasterDecision() {
                 }
             }
         }
-        
+
         data->goalKeeperPlayerId = goalKeeperCandidateId;
-        
+
         // The remaining robot becomes follower
         for (int robotId : remainingRobots) {
             if (robotId != goalKeeperCandidateId) {
@@ -404,7 +434,7 @@ void Brain::processMasterDecision() {
                 break;
             }
         }
-        
+
         // Set our own dynamic role
         if (config->playerId == data->strikerPlayerId) {
             data->dynamicRole = 0; // striker
@@ -420,18 +450,18 @@ void Brain::processMasterDecision() {
         prtDebug(format("Master决策: 球权=%d (cost=%.2f), 角色分配: 主攻=%d, 守门=%d, 跟随=%d, 自己角色=%d", 
             bestRobotId, minCost, data->strikerPlayerId, data->goalKeeperPlayerId, 
             data->followerPlayerId, data->dynamicRole));
-            
+
         // Log roles to rerun for visualization
         string roleStr = "Unknown";
         if (data->dynamicRole == 0) roleStr = "Striker";
         else if (data->dynamicRole == 1) roleStr = "Goalkeeper";
         else if (data->dynamicRole == 2) roleStr = "Follower";
-        
+
         log->logToScreen("collaboration/master_role", 
             format("Master Robot %d: Role=%s, Ball Possession=%d, Cost=%.2f", 
                 config->playerId, roleStr.c_str(), data->possessionPlayerId, data->ballCost), 
             0x00FF00FF);
-            
+
         log->logToScreen("collaboration/role_assignments",
             format("Role Assignments: Striker=%d, Goalkeeper=%d, Follower=%d", 
                 data->strikerPlayerId, data->goalKeeperPlayerId, data->followerPlayerId),
@@ -566,6 +596,10 @@ void Brain::updateMemory()
     tree->setEntry<bool>("is_dynamic_striker", data->dynamicRole == 0);
     tree->setEntry<bool>("is_dynamic_goal_keeper", data->dynamicRole == 1);
     tree->setEntry<bool>("is_dynamic_follower", data->dynamicRole == 2);
+
+    tree->setEntry<bool>("is_at_goalkeeper_position", 
+        fabs(data->robotPoseToField.x - (-6.5)) < 2 &&
+        fabs(data->robotPoseToField.y - 0.0) < 4);
 
     updateBallMemory();
 
