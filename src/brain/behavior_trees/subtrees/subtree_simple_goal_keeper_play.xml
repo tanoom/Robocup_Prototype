@@ -25,7 +25,7 @@
          <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
          
          <!-- Use physical movement to find ball as fallback -->
-         <SubTree ID="FindBall" _autoremap="true" _while="!ball_location_known" />
+         <!-- <SubTree ID="FindBall" _autoremap="true" _while="!ball_location_known" /> -->
          
          <!-- Action based on ball position and distance -->
          <ReactiveSequence name="position_and_distance_based_action">

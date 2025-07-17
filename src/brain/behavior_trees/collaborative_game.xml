@@ -35,7 +35,7 @@
 
                         <ReactiveSequence _while="gc_game_state=='READY'" name="ready">
                             <CamScanField />
-                            <MoveToPoseOnField x="-2" y="2" _while="is_dynamic_striker || is_dynamic_follower" vtheta_limit="2.0"  vx_limit="0.4" />
+                            <MoveToPoseOnField x="-4" y="-2" _while="is_dynamic_striker || is_dynamic_follower" vtheta_limit="2.0"  vx_limit="0.4" />
                             <MoveToPoseOnField x="-6.5" y="0" _while="is_dynamic_goal_keeper" vtheta_limit="2.0"  vx_limit="0.4" />
                             <SelfLocate mode="trust_direction" />
                             <WaveHand _while="we_just_scored" action="start" />
@@ -50,20 +50,24 @@
                         <!-- 协作逻辑的核心部分：在PLAY状态下根据动态角色分配执行不同策略 -->
                         <ReactiveSequence _while="gc_game_state=='PLAY'" name="play">
                             <SelfLocate mode="penalty_point_localize" _while="odom_calibrated" />
+                            <PrintMsg msg="[TREE] Current role: {dynamic_role}" />
 
                             <!-- 动态角色为守门员的机器人始终执行守门策略 -->
                             <ReactiveSequence _while="is_dynamic_goal_keeper" name="dynamic_goalkeeper_play">
+                                <PrintMsg msg="[TREE] Current role: Goalkeeper (dynamic_role: {dynamic_role})" />
                                 <SubTree ID="SimpleGoalKeeperPlay" _autoremap="true" />
                             </ReactiveSequence>
 
                             <!-- 动态角色为主攻击手且拥有球权的机器人执行攻击策略 -->
                             <ReactiveSequence _while="is_dynamic_striker && has_ball_possession" name="striker_with_possession">
+                                <PrintMsg msg="[TREE] Current role: Striker with possession (dynamic_role: {dynamic_role})" />
                                 <SubTree ID="SimpleStrikerPlay" _autoremap="true" />
                             </ReactiveSequence>
 
                             <!-- 动态角色为跟随者或主攻击手但没有球权的机器人跟随有球权的机器人 -->
-                            <ReactiveSequence _while="is_dynamic_follower" name="follower_play">
+                            <ReactiveSequence _while="(is_dynamic_follower || (is_dynamic_striker && !has_ball_possession)) && !is_dynamic_goal_keeper" name="follower_play">
                                 <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
+                                <PrintMsg msg="[TREE] Current role: Follower (dynamic_role: {dynamic_role})" />
                                 <FollowTeammate
                                     follow_distance="2.0"
                                     long_range_threshold="3.0"
@@ -77,9 +81,9 @@
                             </ReactiveSequence>
 
                             <!-- 当角色分配未确定时，执行基本球追踪 -->
-                            <ReactiveSequence _while="dynamic_role == -1" name="role_unknown">
+                            <ReactiveSequence _while="!is_dynamic_striker && !is_dynamic_goal_keeper && !is_dynamic_follower" name="role_unknown">
                                 <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
-                                <PrintMsg msg="角色未分配，执行球追踪" />
+                                <PrintMsg msg="Role not assigned, current dynamic_role: {dynamic_role}" />
                             </ReactiveSequence>
                         </ReactiveSequence>
 

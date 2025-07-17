@@ -313,8 +313,8 @@ void Brain::processMasterDecision() {
     if (commTime > maxMasterCollabTime) maxMasterCollabTime = commTime;
 
     if (masterCollabCallCount % 50 == 0) {
-        prtDebug(format("Master getTeammateCollaborationInfo() 时间统计: 当前=%.3fms, 平均=%.3fms, 最大=%.3fms, 队友数=%zu",
-            commTime, totalMasterCollabTime/masterCollabCallCount, maxMasterCollabTime, teammates.size()));
+        // prtDebug(format("Master getTeammateCollaborationInfo() 时间统计: 当前=%.3fms, 平均=%.3fms, 最大=%.3fms, 队友数=%zu",
+        //     commTime, totalMasterCollabTime/masterCollabCallCount, maxMasterCollabTime, teammates.size()));
     }
 
     prtDebug(format("Master收集信息: 自己(ID=%d, cost=%.2f), 队友数量=%zu",
@@ -323,8 +323,8 @@ void Brain::processMasterDecision() {
     for (const auto& teammate : teammates) {
         robotCosts.push_back({teammate.playerId, teammate.ballCost});
         robotPoses.push_back({teammate.playerId, {teammate.robotPoseX, teammate.robotPoseY, teammate.robotPoseTheta}});
-        prtDebug(format("队友信息: ID=%d, cost=%.2f, pose=(%.2f,%.2f,%.2f)", 
-            teammate.playerId, teammate.ballCost, teammate.robotPoseX, teammate.robotPoseY, teammate.robotPoseTheta));
+        // prtDebug(format("队友信息: ID=%d, cost=%.2f, pose=(%.2f,%.2f,%.2f)", 
+        //     teammate.playerId, teammate.ballCost, teammate.robotPoseX, teammate.robotPoseY, teammate.robotPoseTheta));
     }
 
     // Find robot with minimum cost for ball possession
@@ -356,10 +356,10 @@ void Brain::processMasterDecision() {
             data->goalKeeperPlayerId = -1; 
             data->followerPlayerId = -1;
             data->dynamicRole = -1;
-            prtDebug(format("Master决策: 30秒无球信息，清除所有角色分配 (之前球权: %d)", oldPossessionId));
+            // prtDebug(format("Master决策: 30秒无球信息，清除所有角色分配 (之前球权: %d)", oldPossessionId));
         } else {
-            prtDebug(format("Master决策: 无球信息但保持角色分配，自己角色=%d (之前球权: %d, 无球时间: %.1fs)", 
-                data->dynamicRole, oldPossessionId, timeSinceValidBall));
+            // prtDebug(format("Master决策: 无球信息但保持角色分配，自己角色=%d (之前球权: %d, 无球时间: %.1fs)", 
+            //     data->dynamicRole, oldPossessionId, timeSinceValidBall));
         }
     } else {
         // Reset the timer when we have valid ball information
@@ -416,7 +416,7 @@ void Brain::processMasterDecision() {
             data->dynamicRole = -1; // unknown
         }
 
-        // Log decision
+        // // Log decision
         prtDebug(format("Master决策: 球权=%d (cost=%.2f), 角色分配: 主攻=%d, 守门=%d, 跟随=%d, 自己角色=%d", 
             bestRobotId, minCost, data->strikerPlayerId, data->goalKeeperPlayerId, 
             data->followerPlayerId, data->dynamicRole));
@@ -454,17 +454,17 @@ void Brain::processSlaveUpdates() {
     if (commTime > maxSlaveCollabTime) maxSlaveCollabTime = commTime;
 
     if (slaveCollabCallCount % 50 == 0) {
-        prtDebug(format("Slave getTeammateCollaborationInfo() 时间统计: 当前=%.3fms, 平均=%.3fms, 最大=%.3fms, 队友数=%zu",
-            commTime, totalSlaveCollabTime/slaveCollabCallCount, maxSlaveCollabTime, teammates.size()));
+        // prtDebug(format("Slave getTeammateCollaborationInfo() 时间统计: 当前=%.3fms, 平均=%.3fms, 最大=%.3fms, 队友数=%zu",
+        //     commTime, totalSlaveCollabTime/slaveCollabCallCount, maxSlaveCollabTime, teammates.size()));
     }
 
-    prtDebug(format("Slave更新: 收到%zu个队友信息", teammates.size()));
+    // prtDebug(format("Slave更新: 收到%zu个队友信息", teammates.size()));
 
     bool foundMaster = false;
     for (const auto& teammate : teammates) {
-        prtDebug(format("队友信息: ID=%d, masterID=%d, possessionID=%d, 角色分配: 主攻=%d, 守门=%d, 跟随=%d",
-            teammate.playerId, teammate.masterPlayerId, teammate.possessionPlayerId,
-            teammate.strikerPlayerId, teammate.goalKeeperPlayerId, teammate.followerPlayerId));
+        // prtDebug(format("队友信息: ID=%d, masterID=%d, possessionID=%d, 角色分配: 主攻=%d, 守门=%d, 跟随=%d",
+        //     teammate.playerId, teammate.masterPlayerId, teammate.possessionPlayerId,
+        //     teammate.strikerPlayerId, teammate.goalKeeperPlayerId, teammate.followerPlayerId));
 
         // Check if this teammate is the master
         if (teammate.masterPlayerId == teammate.playerId) {
