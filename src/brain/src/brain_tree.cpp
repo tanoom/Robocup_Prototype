@@ -26,6 +26,7 @@ void BrainTree::init()
     // Action Nodes
     REGISTER_BUILDER(RobotFindBall)
     REGISTER_BUILDER(Chase)
+    REGISTER_BUILDER(ChaseToTarget)
     REGISTER_BUILDER(SimpleChase)
     REGISTER_BUILDER(Adjust)
     REGISTER_BUILDER(Kick)
@@ -310,6 +311,101 @@ NodeStatus Chase::tick()
     vtheta = cap(vtheta, vthetaLimit, -vthetaLimit);
 
     brain->client->setVelocity(vx, vy, vtheta, false, false, false);
+    return NodeStatus::SUCCESS;
+}
+
+NodeStatus ChaseToTarget::tick()
+{
+    if (!brain->tree->getEntry<bool>("ball_location_known"))
+    {
+        brain->client->setVelocity(0, 0, 0);
+        return NodeStatus::SUCCESS;
+    }
+    
+    double vxLimit, vyLimit, vthetaLimit, dist, targetX, targetY, turnFactor;
+    getInput("vx_limit", vxLimit);
+    getInput("vy_limit", vyLimit);
+    getInput("vtheta_limit", vthetaLimit);
+    getInput("dist", dist);
+    getInput("target_x", targetX);
+    getInput("target_y", targetY);
+    getInput("turn_factor", turnFactor); // How aggressively to turn towards target (0.0-1.0)
+
+    double ballRange = brain->data->ball.range;
+    double ballYaw = brain->data->ball.yawToRobot;
+
+    // Calculate desired direction from ball to target
+    double ballToTargetAngle = atan2(targetY - brain->data->ball.posToField.y, 
+                                   targetX - brain->data->ball.posToField.x);
+    
+    // Calculate current robot-ball angle in field coordinates
+    double currentRobotBallAngle = brain->data->robotBallAngleToField;
+    
+    // Calculate angle difference (how much we need to turn)
+    double angleDiff = toPInPI(ballToTargetAngle - currentRobotBallAngle);
+
+    Pose2D target_f, target_r;
+    
+    // Same logic as original Chase for determining when to circle back
+    if (brain->data->robotPoseToField.x - brain->data->ball.posToField.x > (_state == "chase" ? 1.0 : 0.0))
+    {
+        _state = "circle_back";
+
+        target_f.x = brain->data->ball.posToField.x - dist;
+
+        // Modify circling direction to favor target direction
+        // If we need to turn left (positive angle), circle left; if right, circle right
+        double targetInfluencedDir = _dir;
+        if (fabs(angleDiff) > 0.2) { // Only change direction if angle difference is significant
+            targetInfluencedDir = (angleDiff > 0) ? 1.0 : -1.0;
+            // Smooth transition between directions
+            _dir = _dir * 0.7 + targetInfluencedDir * 0.3;
+        }
+
+        target_f.y = brain->data->ball.posToField.y + _dir * dist;
+    }
+    else
+    { // chase
+        _state = "chase";
+        target_f.x = brain->data->ball.posToField.x - dist;
+        
+        // Gradually adjust chase position towards target direction
+        // This creates a lateral offset that steers the ball towards the target
+        double maxLateralOffset = dist * 0.8; // Maximum lateral adjustment
+        double lateralOffset = sin(angleDiff) * maxLateralOffset * turnFactor;
+        
+        // Limit the lateral offset to prevent too aggressive turning
+        lateralOffset = cap(lateralOffset, maxLateralOffset, -maxLateralOffset);
+        
+        target_f.y = brain->data->ball.posToField.y + lateralOffset;
+    }
+
+    target_r = brain->data->field2robot(target_f);
+
+    double vx = target_r.x;
+    double vy = target_r.y;
+    
+    // Modify angular velocity to gradually turn towards target
+    double baseVtheta = ballYaw * 2.0;
+    double targetTurnInfluence = angleDiff * turnFactor * 0.3; // Gradual turning influence
+    double vtheta = baseVtheta + targetTurnInfluence;
+
+    double linearFactor = 1 / (1 + exp(3 * (ballRange * fabs(ballYaw)) - 3));
+    vx *= linearFactor;
+    vy *= linearFactor;
+
+    vx = cap(vx, vxLimit, -vxLimit);
+    vy = cap(vy, vyLimit, -vyLimit);
+    vtheta = cap(vtheta, vthetaLimit, -vthetaLimit);
+
+    brain->client->setVelocity(vx, vy, vtheta, false, false, false);
+    
+    // Log information for debugging
+    brain->log->logToScreen("ChaseToTarget",
+                           format("State: %s, AngleDiff: %.2f°, Target: (%.2f, %.2f)", 
+                                  _state.c_str(), rad2deg(angleDiff), targetX, targetY),
+                           0x00FF00FF);
+    
     return NodeStatus::SUCCESS;
 }
 

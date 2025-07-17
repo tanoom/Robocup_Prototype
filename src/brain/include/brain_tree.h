@@ -170,6 +170,33 @@ private:
     double _dir = 1.0; // 1.0 circle back from left, -1.0  circle back from right
 };
 
+// Chasing the ball with target direction: Like Chase but steers towards a target position
+class ChaseToTarget : public SyncActionNode
+{
+public:
+    ChaseToTarget(const string &name, const NodeConfig &config, Brain *_brain) : SyncActionNode(name, config), brain(_brain) {}
+
+    static PortsList providedPorts()
+    {
+        return {
+            InputPort<double>("vx_limit", 0.4, "Maximum x velocity for chasing the ball"),
+            InputPort<double>("vy_limit", 0.4, "Maximum y velocity for chasing the ball"),
+            InputPort<double>("vtheta_limit", 0.1, "Maximum angular velocity for real-time direction adjustment while chasing the ball"),
+            InputPort<double>("dist", 1.0, "The target distance behind the ball for chasing it"),
+            InputPort<double>("target_x", 0.0, "Target x position to steer the ball towards"),
+            InputPort<double>("target_y", 0.0, "Target y position to steer the ball towards"),
+            InputPort<double>("turn_factor", 0.3, "How aggressively to turn towards target (0.0-1.0)"),
+        };
+    }
+
+    NodeStatus tick() override;
+
+private:
+    Brain *brain;
+    string _state;     // circl_back, chase;
+    double _dir = 1.0; // 1.0 circle back from left, -1.0  circle back from right
+};
+
 // After approaching the ball, adjust to the appropriate kicking angle for offense or defense.
 class Adjust : public SyncActionNode
 {

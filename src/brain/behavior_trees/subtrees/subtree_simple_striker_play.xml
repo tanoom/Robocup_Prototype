@@ -27,12 +27,15 @@
                   </Sequence>
                </Sequence>
                <Sequence name="ball_in_our_half">
-                  <PrintMsg msg="Ball in our half, only chasing with closer distance" />
-                  <Chase 
+                  <PrintMsg msg="Ball in our half, only chasing to target with closer distance" />
+                  <ChaseToTarget
                      vx_limit="1.0" 
                      vy_limit="1.0" 
                      vtheta_limit="1.0" 
-                     dist="0.1" 
+                     dist="0.1"
+                     target_x="7.0"
+                     target_y="0.0" 
+                     turn_factor="0.5"
                   />
                </Sequence>
             </IfThenElse>
