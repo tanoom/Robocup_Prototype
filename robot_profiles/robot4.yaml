@@ -27,4 +27,8 @@ sftp:
   password: '123456'
   port: 22
   remotePath: /home/booster/Workspace/playground/robocup_prototype
-  username: booster 
+  username: booster
+  ignore:
+    - .vscode
+    - .git
+    - .DS_Store 

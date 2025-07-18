@@ -1,7 +1,7 @@
 brain_node:
   ros__parameters:
     game:
-      team_id: 31
+      team_id: 17
       player_id: 2
       field_type: "adult_size"
       player_role: "goal_keeper"

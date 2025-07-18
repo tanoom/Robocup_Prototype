@@ -119,6 +119,10 @@ class RobotConfigManager:
             "dirMode": "0755"
         }
         
+        # Add ignore configuration if present
+        if 'ignore' in sftp_config:
+            new_config["ignore"] = sftp_config['ignore']
+        
         # Write new configuration
         with open(sftp_path, 'w', encoding='utf-8') as f:
             json.dump(new_config, f, indent=4, ensure_ascii=False)

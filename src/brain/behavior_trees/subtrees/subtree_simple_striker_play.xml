@@ -35,7 +35,7 @@
                      dist="0.1"
                      target_x="7.0"
                      target_y="0.0" 
-                     turn_factor="0.5"
+                     turn_factor="1.0"
                   />
                </Sequence>
             </IfThenElse>
