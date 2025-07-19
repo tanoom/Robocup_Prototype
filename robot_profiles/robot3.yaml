@@ -4,7 +4,7 @@ brain:
     field_type: adult_size
     player_id: 2
     player_role: goal_keeper
-    player_start_pos: left
+    player_start_pos: right
     team_id: 17
   rerunLog:
     enable: true
@@ -16,14 +16,14 @@ brain:
     vx_factor: 0.9
     yaw_offset: 0.1
 description: Goalkeeper, left starting position
-name: '278'
+name: '244'
 network:
   interfaces:
   - 127.0.0.1
   - 192.168.10.101
   - 192.168.10.102
 sftp:
-  host: 192.168.5.196
+  host: 192.168.4.231
   password: '123456'
   port: 22
   remotePath: /home/booster/Workspace/playground/robocup_prototype
@@ -37,33 +37,33 @@ vision:
   camera:
     type: realsense
     intrin:
-      fx: 647.019409
-      fy: 646.228149
-      cx: 645.824524
-      cy: 367.528625
+      fx: 643.657532
+      fy: 642.791077
+      cx: 647.286255
+      cy: 369.939545
       distortion_model: 1
       distortion_coeffs:
-        - -0.0550965555
-        - 0.0656165257
-        - 0.000699833676
-        - 6.44399643e-06
-        - -0.0212776419
+        - -0.0563431717
+        - 0.066704601
+        - -0.000166566533
+        - 0.000589234929
+        - -0.0215061288
     extrin:
       -
-        - 0.00729241874
-        - -0.0647427663
-        - 0.997875333
-        - 0.0178507343
+        - 0.0102362549
+        - 0.0190763455
+        - 0.999765635
+        - 0.00547224423
       -
-        - -0.999968529
-        - 0.00265902071
-        - 0.00748023437
-        - -0.0266040638
+        - -0.999935746
+        - -0.00468532182
+        - 0.010327396
+        - -0.0200457573
       -
-        - -0.00313766231
-        - -0.997898459
-        - -0.064721331
-        - 0.0202849042
+        - 0.00488123251
+        - -0.99980706
+        - 0.0190271549
+        - -0.0149038192
       -
         - 0
         - 0
@@ -89,5 +89,5 @@ vision:
     statistic_outlier_multiplier: 0.01
   calibration:
     handeye:
-      calibration_time: 2025-07-18-10-51-11
-      reprojection_error: 3.0306561832349606
+      calibration_time: 2025-07-19-10-16-35
+      reprojection_error: 3.8006200790212228

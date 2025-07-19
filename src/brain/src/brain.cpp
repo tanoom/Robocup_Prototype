@@ -292,7 +292,7 @@ void Brain::processMasterDecision() {
     static auto lastValidBallTimeStamp = get_clock()->now();
 
     // Anti-oscillation threshold for ball cost difference
-    constexpr double POSSESSION_COST_DIFF_THRESHOLD = 3; // You can tune this value
+    constexpr double POSSESSION_COST_DIFF_THRESHOLD = 6; // You can tune this value
 
     // Collect cost information from all robots (including self)
     std::vector<std::pair<int, double>> robotCosts;
