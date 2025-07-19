@@ -11,6 +11,11 @@
          <ReactiveSequence _while="!wait_for_opponent_kickoff" name="start">
             <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
             <SelfLocate mode="penalty_point_localize" _while="odom_calibrated" />
+            <ReactiveSequence>
+               <GoBackInField valve="0.5" />
+               <StrikerDecide decision_out="{decision}" decision_in="{decision}" chase_threshold="1.2" kick_range_threshold="1.5" />
+               <SubTree ID="FindBall" _while="decision=='find'" _autoremap="true" />
+            </ReactiveSequence>
             <IfThenElse>
                <ScriptCondition name="Robot in opponent half?" code="robot_pose_x > 0.0" />
                <Sequence name="robot_in_opponent_half">
