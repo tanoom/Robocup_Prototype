@@ -56,6 +56,7 @@ public:
     {
         return {
             InputPort<double>("chase_threshold", 1.0, "Perform the chasing action if the distance exceeds this threshold"),
+            InputPort<double>("kick_range_threshold", 0.8, "Ball must be within this range (in meters) to enter kick mode"),
             InputPort<string>("decision_in", "", "Used to read the last decision"),
             InputPort<string>("position", "offense", "offense | defense, determines the direction to kick the ball"),
             OutputPort<string>("decision_out"),
@@ -77,6 +78,7 @@ public:
     {
         return {
             InputPort<double>("chase_threshold", 1.0, "Perform the chasing action if the distance exceeds this threshold"),
+            InputPort<double>("kick_range_threshold", 0.6, "Ball must be within this range (in meters) to enter kick mode"),
             InputPort<double>("adjust_angle_tolerance", 0.1, "Consider the adjustment successful if the angle is smaller than this value"),
             InputPort<double>("adjust_y_tolerance", 0.1, "Consider the y-direction adjustment successful if the offset is smaller than this value"),
             InputPort<string>("decision_in", "", "Used to read the last decision"),
@@ -417,10 +419,10 @@ private:
     Brain *brain;
 };
 
-class GoBackInField : public SyncActionNode
+class GoBackInField : public StatefulActionNode
 {
 public:
-    GoBackInField(const string &name, const NodeConfig &config, Brain *_brain) : SyncActionNode(name, config), brain(_brain) {}
+    GoBackInField(const string &name, const NodeConfig &config, Brain *_brain) : StatefulActionNode(name, config), brain(_brain) {}
 
     static PortsList providedPorts()
     {
@@ -429,10 +431,16 @@ public:
         };
     }
 
-    NodeStatus tick() override;
+    NodeStatus onStart() override;
+    NodeStatus onRunning() override;
+    void onHalted() override;
 
 private:
     Brain *brain;
+    bool _isMovingBack;
+    double _targetDirection;
+    rclcpp::Time _startTime;
+    static constexpr int _timeoutMs = 10000; // 10 second timeout
 };
 
 class TurnOnSpot : public StatefulActionNode

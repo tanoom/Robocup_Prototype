@@ -4,29 +4,29 @@ brain:
     field_type: adult_size
     player_id: 0
     player_role: striker
-    player_start_pos: left
-    team_id: 31
+    player_start_pos: right
+    team_id: 17
   rerunLog:
     enable: true
-    img_interval: 10
-    server_addr: 192.168.5.57:9876
+    img_interval: 1
+    server_addr: 192.168.4.77:9876
   robot:
     odom_factor: 1.2
     robot_height: 1.0
     vx_factor: 0.9
     yaw_offset: 0.1
 description: Striker, left starting position
-name: '243'
+name: '253'
 network:
   interfaces:
   - 127.0.0.1
   - 192.168.10.101
   - 192.168.10.102
 sftp:
-  host: 192.168.5.153
+  host: 192.168.4.2
   password: '123456'
   port: 22
-  remotePath: /home/booster/Workspace/playground/robocup_prototype
+  remotePath: /home/booster/Workspace/robocup_prototype
   username: booster
   ignore:
     - .vscode
@@ -37,33 +37,33 @@ vision:
   camera:
     type: realsense
     intrin:
-      fx: 643.764099
-      fy: 642.708801
-      cx: 653.39447
-      cy: 369.790833
+      fx: 643.581665
+      fy: 642.838074
+      cx: 643.735657
+      cy: 368.360596
       distortion_model: 1
       distortion_coeffs:
-        - -0.0569151118
-        - 0.0661053881
-        - -0.000281809189
-        - 0.000327109679
-        - -0.0214779917
+        - -0.0560964011
+        - 0.0661926344
+        - -0.000320490479
+        - -9.39076053e-05
+        - -0.021277396
     extrin:
       -
-        - 0.00363618694
-        - 0.0109330546
-        - 0.9999336
-        - 0.0121249426
+        - 0.00180072302
+        - -0.026696682
+        - 0.999642015
+        - 0.0096466681
       -
-        - -0.999985933
-        - 0.00390655128
-        - 0.00359366369
-        - -0.00105165038
+        - -0.999998271
+        - 0.000545835879
+        - 0.00181594212
+        - -0.028836485
       -
-        - -0.0038670022
-        - -0.999932528
-        - 0.0109471055
-        - 0.000819291803
+        - -0.000594120007
+        - -0.999643326
+        - -0.0266956501
+        - -0.0209911671
       -
         - 0
         - 0
@@ -89,5 +89,5 @@ vision:
     statistic_outlier_multiplier: 0.01
   calibration:
     handeye:
-      calibration_time: 2025-07-10-17-59-45
-      reprojection_error: 4.6518018527679406
+      calibration_time: 2025-07-17-14-08-48
+      reprojection_error: 2.214936402236270

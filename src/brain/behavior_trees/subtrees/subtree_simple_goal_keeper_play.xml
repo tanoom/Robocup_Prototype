@@ -8,10 +8,12 @@
          
          <!-- Priority 1: Always ensure goalkeeper is at correct position -->
          <ReactiveSequence name="goalkeeper_positioning">
+            <GoBackInField valve="0.5" />
+            <!-- <PrintMsg msg="GoBackInField completed, checking goalkeeper position" /> -->
             <IfThenElse>
                <ScriptCondition name="At goalkeeper position?" code="is_at_goalkeeper_position" />
                <Sequence name="position_maintained">
-                  <PrintMsg msg="Goalkeeper at correct position, proceeding with ball tracking" />
+                  <!-- <PrintMsg msg="Goalkeeper at correct position, proceeding with ball tracking" /> -->
                   <!-- Use striker play's ball finding pattern -->
                   <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
                   
@@ -21,9 +23,9 @@
                         <ScriptCondition name="Ball in opponent half?" code="ball_x > 0.0" />
                         <Sequence name="ball_in_our_half">
                            <IfThenElse>
-                              <ScriptCondition name="Ball within 4 meters?" code="ball_range <= 4.0" />
+                              <ScriptCondition name="Ball within 4 meters?" code="ball_range <= 6.0" />
                               <Sequence name="chase_ball">
-                                 <PrintMsg msg="Ball in our half and within 4 meters, starting chase with dist=0.1" />
+                                 <!-- <PrintMsg msg="Ball in our half and within 4 meters, starting chase with dist=0.1" /> -->
                                  <Chase 
                                     vx_limit="0.8" 
                                     vy_limit="0.6" 
@@ -32,7 +34,7 @@
                                  />
                               </Sequence>
                               <Sequence name="stay_at_position">
-                                 <PrintMsg msg="Ball in our half but farther than 4 meters, maintaining position" />
+                                 <!-- <PrintMsg msg="Ball in our half but farther than 4 meters, maintaining position" /> -->
                                  <SetVelocity x="0" y="0" theta="0" />
                               </Sequence>
                            </IfThenElse>
@@ -41,7 +43,7 @@
                   </ReactiveSequence>
                </Sequence>
                <Sequence name="return_to_position">
-                  <PrintMsg msg="Goalkeeper not at correct position, returning to x=-6.5, y=0" />
+                  <!-- <PrintMsg msg="Goalkeeper not at correct position, returning to x=-6.5, y=0" /> -->
                   <MoveToPoseOnField 
                      x="-6.5" 
                      y="0.0" 

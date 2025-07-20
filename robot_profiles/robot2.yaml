@@ -1,6 +1,6 @@
 brain:
   game:
-    collaboration_role: master
+    collaboration_role: slave
     field_type: adult_size
     player_id: 1
     player_role: striker
@@ -23,7 +23,7 @@ network:
   - 192.168.10.101
   - 192.168.10.102
 sftp:
-  host: 192.168.5.245
+  host: 192.168.4.162
   password: '123456'
   port: 22
   remotePath: /home/booster/Workspace/playground/robocup_prototype
@@ -50,20 +50,20 @@ vision:
         - -0.0213696938
     extrin:
       -
-        - 0.000944652071
-        - -0.0248776469
-        - 0.999690056
-        - 0.0134895714
+        - -0.00377043546
+        - -0.00587862357
+        - 0.999975622
+        - 0.0086986674
       -
-        - -0.999975026
-        - -0.00702787191
-        - 0.000770030194
-        - -0.0510722436
+        - -0.999992192
+        - -0.00115927123
+        - -0.00377731351
+        - -0.0232544411
       -
-        - 0.0070065381
-        - -0.999665856
-        - -0.0248836633
-        - -0.00982860569
+        - 0.00118144846
+        - -0.999982119
+        - -0.00587420724
+        - 0.00337361917
       -
         - 0
         - 0
@@ -77,17 +77,17 @@ vision:
     confidence_threshold: 0.2
   use_depth: true
   ball_pose_estimator:
-    use_depth: false
+    use_depth: False
     radius: 1.109
     down_sample_leaf_size: 0.01
     cluster_distance_threshold: 0.01
     fitting_distance_threshold: 0.01
   human_like_pose_estimator:
-    use_depth: false
+    use_depth: False
     down_sample_leaf_size: 0.01
     fitting_distance_threshold: 0.01
     statistic_outlier_multiplier: 0.01
   calibration:
     handeye:
-      calibration_time: 2025-07-16-15-33-26
-      reprojection_error: 4.7892497824906917
+      calibration_time: 2025-07-20-15-56-53
+      reprojection_error: 4.0066343400550615

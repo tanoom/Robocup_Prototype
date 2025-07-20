@@ -516,6 +516,8 @@ NodeStatus StrikerDecide::tick()
 
     double chaseRangeThreshold;
     getInput("chase_threshold", chaseRangeThreshold);
+    double kickRangeThreshold;
+    getInput("kick_range_threshold", kickRangeThreshold);
     string lastDecision, position;
     getInput("decision_in", lastDecision);
     getInput("position", position);
@@ -529,6 +531,9 @@ NodeStatus StrikerDecide::tick()
     double ballRange = brain->data->ball.range;
     double ballYaw = brain->data->ball.yawToRobot;
 
+    // Add kick range threshold - ball must be close enough to actually kick
+    bool ballInKickRange = (ballRange <= kickRangeThreshold);
+
     string newDecision;
     auto color = 0xFFFFFFFF; // for log
     if (!brain->tree->getEntry<bool>("ball_location_known"))
@@ -541,7 +546,7 @@ NodeStatus StrikerDecide::tick()
         newDecision = "chase";
         color = 0x00FF00FF;
     }
-    else if (angleIsGood)
+    else if (angleIsGood) //TODO Change it back ballInKickRange
     {
         newDecision = "kick";
         color = 0xFF0000FF;
@@ -554,7 +559,7 @@ NodeStatus StrikerDecide::tick()
 
     setOutput("decision_out", newDecision);
     brain->log->logToScreen("tree/Decide",
-                            format("Decision: %s ballrange: %.2f ballyaw: %.2f kickDir: %.2f rbDir: %.2f angleIsGood: %d", newDecision.c_str(), ballRange, ballYaw, kickDir, dir_rb_f, angleIsGood),
+                            format("Decision: %s ballrange: %.2f ballyaw: %.2f kickDir: %.2f rbDir: %.2f angleIsGood: %d ballInKickRange: %d", newDecision.c_str(), ballRange, ballYaw, kickDir, dir_rb_f, angleIsGood, ballInKickRange),
                             color);
     return NodeStatus::SUCCESS;
 }
@@ -668,6 +673,8 @@ NodeStatus GoalieDecide::tick()
 
     double chaseRangeThreshold;
     getInput("chase_threshold", chaseRangeThreshold);
+    double kickRangeThreshold;
+    getInput("kick_range_threshold", kickRangeThreshold);
     string lastDecision, position;
     getInput("decision_in", lastDecision);
 
@@ -679,6 +686,9 @@ NodeStatus GoalieDecide::tick()
     bool angleIsGood = (dir_rb_f > -M_PI / 2 && dir_rb_f < M_PI / 2);
     double ballRange = brain->data->ball.range;
     double ballYaw = brain->data->ball.yawToRobot;
+
+    // Add kick range threshold for goalkeepers - ball must be close enough to actually kick
+    bool ballInKickRange = (ballRange <= kickRangeThreshold);
 
     string newDecision;
     auto color = 0xFFFFFFFF; // for log
@@ -697,7 +707,7 @@ NodeStatus GoalieDecide::tick()
         newDecision = "chase";
         color = 0x00FF00FF;
     }
-    else if (angleIsGood)
+    else if (angleIsGood && ballInKickRange)
     {
         newDecision = "kick";
         color = 0xFF0000FF;
@@ -710,7 +720,7 @@ NodeStatus GoalieDecide::tick()
 
     setOutput("decision_out", newDecision);
     brain->log->logToScreen("tree/Decide",
-                            format("Decision: %s ballrange: %.2f ballyaw: %.2f kickDir: %.2f rbDir: %.2f angleIsGood: %d", newDecision.c_str(), ballRange, ballYaw, kickDir, dir_rb_f, angleIsGood),
+                            format("Decision: %s ballrange: %.2f ballyaw: %.2f kickDir: %.2f rbDir: %.2f angleIsGood: %d ballInKickRange: %d", newDecision.c_str(), ballRange, ballYaw, kickDir, dir_rb_f, angleIsGood, ballInKickRange),
                             color);
     return NodeStatus::SUCCESS;
 }
@@ -1055,29 +1065,96 @@ NodeStatus WaveHand::tick()
     return NodeStatus::SUCCESS;
 }
 
-NodeStatus GoBackInField::tick()
+NodeStatus GoBackInField::onStart()
 {
     double valve;
     getInput("valve", valve);
-    double vx = 0;
-    double vy = 0;
-    double dir = 0;
+    
     auto fd = brain->config->fieldDimensions;
-    if (brain->data->robotPoseToField.x > fd.length / 2.0 - valve) dir = - M_PI;
-    else if (brain->data->robotPoseToField.x < - fd.length / 2.0 + valve) dir = 0;
-    else if (brain->data->robotPoseToField.y > fd.width / 2.0 + valve) dir = - M_PI / 2.0;
-    else if (brain->data->robotPoseToField.y < - fd.width / 2.0 - valve) dir = M_PI / 2.0;
-    else { // 没出界
-        brain->client->setVelocity(0, 0, 0);
+    double currentX = brain->data->robotPoseToField.x;
+    double currentY = brain->data->robotPoseToField.y;
+    
+    // Check if robot is outside the field
+    bool isOutside = false;
+    if (currentX > fd.length / 2.0 - valve) {
+        _targetDirection = -M_PI; // Move west (negative X)
+        isOutside = true;
+    } else if (currentX < -fd.length / 2.0 + valve) {
+        _targetDirection = 0; // Move east (positive X)
+        isOutside = true;
+    } else if (currentY > fd.width / 2.0 + valve) {
+        _targetDirection = -M_PI / 2.0; // Move south (negative Y)
+        isOutside = true;
+    } else if (currentY < -fd.width / 2.0 - valve) {
+        _targetDirection = M_PI / 2.0; // Move north (positive Y)
+        isOutside = true;
+    }
+    
+    if (!isOutside) {
+        // Robot is already inside the field
+        brain->log->logToScreen("GoBackInField", "Robot already inside field", 0x00FF00FF);
         return NodeStatus::SUCCESS;
     }
+    
+    // Robot is outside, start moving back
+    _isMovingBack = true;
+    _startTime = brain->get_clock()->now();
+    
+    brain->log->logToScreen("GoBackInField", 
+        format("Robot outside field at (%.2f, %.2f), moving back with direction %.2f", 
+               currentX, currentY, _targetDirection), 0xFFFF00FF);
+    
+    return NodeStatus::RUNNING;
+}
 
-    // 出界了, 往回走
-    double dir_r = toPInPI(dir - brain->data->robotPoseToField.theta);
-    vx = 0.4 * cos(dir_r);
-    vy = 0.4 * sin(dir_r);
+NodeStatus GoBackInField::onRunning()
+{
+    double valve;
+    getInput("valve", valve);
+    
+    auto fd = brain->config->fieldDimensions;
+    double currentX = brain->data->robotPoseToField.x;
+    double currentY = brain->data->robotPoseToField.y;
+    
+    // Check if we've reached the field boundary
+    bool isInside = true;
+    if (currentX > fd.length / 2.0 - valve) isInside = false;
+    else if (currentX < -fd.length / 2.0 + valve) isInside = false;
+    else if (currentY > fd.width / 2.0 + valve) isInside = false;
+    else if (currentY < -fd.width / 2.0 - valve) isInside = false;
+    
+    if (isInside) {
+        // Successfully returned to field
+        brain->client->setVelocity(0, 0, 0);
+        brain->log->logToScreen("GoBackInField", 
+            format("Successfully returned to field at (%.2f, %.2f)", currentX, currentY), 0x00FF00FF);
+        return NodeStatus::SUCCESS;
+    }
+    
+    // Check timeout
+    auto currentTime = brain->get_clock()->now();
+    double elapsedMs = (currentTime - _startTime).nanoseconds() / 1e6;
+    if (elapsedMs > _timeoutMs) {
+        brain->client->setVelocity(0, 0, 0);
+        brain->log->logToScreen("GoBackInField", 
+            format("Timeout after %.1fms, stopping movement", elapsedMs), 0xFF0000FF);
+        return NodeStatus::FAILURE;
+    }
+    
+    // Continue moving back to field
+    double dir_r = toPInPI(_targetDirection - brain->data->robotPoseToField.theta);
+    double vx = 0.4 * cos(dir_r);
+    double vy = 0.4 * sin(dir_r);
     brain->client->setVelocity(vx, vy, 0, false, false, false);
-    return NodeStatus::SUCCESS;
+    
+    return NodeStatus::RUNNING;
+}
+
+void GoBackInField::onHalted()
+{
+    brain->client->setVelocity(0, 0, 0);
+    _isMovingBack = false;
+    brain->log->logToScreen("GoBackInField", "Movement halted", 0xFFFF00FF);
 }
 
 NodeStatus TurnOnSpot::onStart()
@@ -1698,37 +1775,32 @@ void FollowTeammate::onHalted()
 std::pair<double, double> FollowTeammate::calculateFollowPosition(double teammateX, double teammateY,
                                                                 double ballX, double ballY, double followDistance)
 {
-    // Calculate the angle from teammate to ball
-    double teammateToBallAngle = atan2(ballY - teammateY, ballX - teammateX);
-
-    // Calculate two possible follow positions: left-rear and right-rear
-    double rearAngle = teammateToBallAngle + M_PI; // 180 degrees behind
-    double leftRearAngle = rearAngle + M_PI/3;     // 60 degrees to the left of rear
-    double rightRearAngle = rearAngle - M_PI/3;    // 60 degrees to the right of rear
-
-    // Calculate positions
-    double leftRearX = teammateX + followDistance * cos(leftRearAngle);
-    double leftRearY = teammateY + followDistance * sin(leftRearAngle);
-
-    double rightRearX = teammateX + followDistance * cos(rightRearAngle);
-    double rightRearY = teammateY + followDistance * sin(rightRearAngle);
+    // Simple approach: calculate two fixed positions relative to teammate (left-back and right-back)
+    // without considering the teammate's rotation or ball direction
+    
+    // Fixed offset positions: left-back and right-back relative to teammate
+    double leftBackX = teammateX - followDistance * 0.866;  // cos(30°) = 0.866
+    double leftBackY = teammateY + followDistance * 0.5;    // sin(30°) = 0.5
+    
+    double rightBackX = teammateX - followDistance * 0.866; // cos(30°) = 0.866  
+    double rightBackY = teammateY - followDistance * 0.5;   // sin(-30°) = -0.5
 
     // Calculate distances from current position to both options
     double currentX = brain->data->robotPoseToField.x;
     double currentY = brain->data->robotPoseToField.y;
 
-    double distToLeft = sqrt(pow(currentX - leftRearX, 2) + pow(currentY - leftRearY, 2));
-    double distToRight = sqrt(pow(currentX - rightRearX, 2) + pow(currentY - rightRearY, 2));
+    double distToLeft = sqrt(pow(currentX - leftBackX, 2) + pow(currentY - leftBackY, 2));
+    double distToRight = sqrt(pow(currentX - rightBackX, 2) + pow(currentY - rightBackY, 2));
 
     // Choose the closer position
     if (distToLeft < distToRight) {
         brain->log->logToScreen("FollowTeammate",
-            format("Following left-rear position (%.2f, %.2f)", leftRearX, leftRearY), 0x00FFFFFF);
-        return {leftRearX, leftRearY};
+            format("Following left-back position (%.2f, %.2f)", leftBackX, leftBackY), 0x00FFFFFF);
+        return {leftBackX, leftBackY};
     } else {
         brain->log->logToScreen("FollowTeammate",
-            format("Following right-rear position (%.2f, %.2f)", rightRearX, rightRearY), 0x00FFFFFF);
-        return {rightRearX, rightRearY};
+            format("Following right-back position (%.2f, %.2f)", rightBackX, rightBackY), 0x00FFFFFF);
+        return {rightBackX, rightBackY};
     }
 }
 

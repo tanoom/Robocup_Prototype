@@ -127,4 +127,23 @@ private:
     double maxLoopTime;
     double minLoopTime;
     int loopCount;
+
+    // Individual function timing statistics
+    // updateMemory timing
+    double totalUpdateMemoryTime;
+    double maxUpdateMemoryTime;
+    double minUpdateMemoryTime;
+    int updateMemoryCount;
+    
+    // updateCollaboration timing
+    double totalUpdateCollaborationTime;
+    double maxUpdateCollaborationTime;
+    double minUpdateCollaborationTime;
+    int updateCollaborationCount;
+    
+    // tree->tick() timing
+    double totalTreeTickTime;
+    double maxTreeTickTime;
+    double minTreeTickTime;
+    int treeTickCount;
 };

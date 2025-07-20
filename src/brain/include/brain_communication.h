@@ -121,7 +121,8 @@ private:
     int _unicast_socket = -1;
     int _unicast_udp_port = 0;
     sockaddr_in _unicast_saddr;
-    static constexpr int UNICAST_INTERVAL_MS = 100;
+    static constexpr int UNICAST_INTERVAL_MS = 50;
+    //TODO Change it back
 
     // Receive unicast communication from teammates
     void initCommunicationReceiver();
