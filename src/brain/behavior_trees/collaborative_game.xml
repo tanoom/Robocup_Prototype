@@ -1,9 +1,8 @@
 <root BTCPP_format="4">
     <include path="./subtrees/subtree_cam_find_and_track_ball.xml" />
-    <include path="./subtrees/subtree_striker_play.xml" />
-    <include path="./subtrees/subtree_advanced_goal_keeper_play.xml" />
     <include path="./subtrees/subtree_simple_striker_play.xml" />
     <include path="./subtrees/subtree_simple_goal_keeper_play.xml" />
+    <include path="./subtrees/subtree_striker_play.xml" />
     <include path="./subtrees/subtree_striker_freekick.xml" />
     <include path="./subtrees/subtree_goal_keeper_freekick.xml" />
     <include path="./subtrees/subtree_auto_standup_and_locate.xml" />
@@ -50,24 +49,24 @@
                         <!-- 协作逻辑的核心部分：在PLAY状态下根据动态角色分配执行不同策略 -->
                         <ReactiveSequence _while="gc_game_state=='PLAY'" name="play">
                             <SelfLocate mode="penalty_point_localize" _while="odom_calibrated" />
-                            <PrintMsg msg="[TREE] Current role: {dynamic_role}" />
+                            <!-- <PrintMsg msg="[TREE] Current role: {dynamic_role}" /> -->
 
                             <!-- 动态角色为守门员的机器人始终执行守门策略 -->
                             <ReactiveSequence _while="is_dynamic_goal_keeper" name="dynamic_goalkeeper_play">
-                                <PrintMsg msg="[TREE] Current role: Goalkeeper (dynamic_role: {dynamic_role})" />
+                                <!-- <PrintMsg msg="[TREE] Current role: Goalkeeper (dynamic_role: {dynamic_role})" /> -->
                                 <SubTree ID="SimpleGoalKeeperPlay" _autoremap="true" />
                             </ReactiveSequence>
 
                             <!-- 动态角色为主攻击手且拥有球权的机器人执行攻击策略 -->
                             <ReactiveSequence _while="is_dynamic_striker && has_ball_possession" name="striker_with_possession">
-                                <PrintMsg msg="[TREE] Current role: Striker with possession (dynamic_role: {dynamic_role})" />
+                                <!-- <PrintMsg msg="[TREE] Current role: Striker with possession (dynamic_role: {dynamic_role})" /> -->
                                 <SubTree ID="SimpleStrikerPlay" _autoremap="true" />
                             </ReactiveSequence>
 
                             <!-- 动态角色为跟随者或主攻击手但没有球权的机器人跟随有球权的机器人 -->
                             <ReactiveSequence _while="is_dynamic_follower" name="follower_play">
                                 <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
-                                <PrintMsg msg="[TREE] Current role: Follower (dynamic_role: {dynamic_role})" />
+                                <!-- <PrintMsg msg="[TREE] Current role: Follower (dynamic_role: {dynamic_role})" /> -->
                                 <FollowTeammate
                                     follow_distance="2.0"
                                     long_range_threshold="3.0"
@@ -77,13 +76,13 @@
                                     vtheta_limit="0.8"
                                     position_tolerance="0.3"
                                     angle_tolerance="0.2" />
-                                <PrintMsg msg="跟随有球权的机器人" />
+                                <!-- <PrintMsg msg="跟随有球权的机器人" /> -->
                             </ReactiveSequence>
 
                             <!-- 当角色分配未确定时，执行基本球追踪 -->
                             <ReactiveSequence _while="!is_dynamic_striker && !is_dynamic_goal_keeper && !is_dynamic_follower" name="role_unknown">
                                 <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
-                                <PrintMsg msg="Role not assigned, current dynamic_role: {dynamic_role}" />
+                                <!-- <PrintMsg msg="Role not assigned, current dynamic_role: {dynamic_role}" /> -->
                             </ReactiveSequence>
                         </ReactiveSequence>
 
@@ -117,7 +116,7 @@
                                     vtheta_limit="1.0"
                                     position_tolerance="1.5"
                                     angle_tolerance="1.0" />
-                                <PrintMsg msg="任意球时跟随有球权的机器人" />
+                                <!-- <PrintMsg msg="任意球时跟随有球权的机器人" /> -->
                             </ReactiveSequence>
                         </ReactiveSequence>
                         <ReactiveSequence _while="gc_game_sub_state=='SET'">

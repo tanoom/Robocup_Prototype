@@ -72,6 +72,25 @@ void Brain::init()
     minLoopTime = std::numeric_limits<double>::max();
     loopCount = 0;
 
+    // Initialize individual function timing statistics
+    // updateMemory timing
+    totalUpdateMemoryTime = 0.0;
+    maxUpdateMemoryTime = 0.0;
+    minUpdateMemoryTime = std::numeric_limits<double>::max();
+    updateMemoryCount = 0;
+    
+    // updateCollaboration timing
+    totalUpdateCollaborationTime = 0.0;
+    maxUpdateCollaborationTime = 0.0;
+    minUpdateCollaborationTime = std::numeric_limits<double>::max();
+    updateCollaborationCount = 0;
+    
+    // tree->tick() timing
+    totalTreeTickTime = 0.0;
+    maxTreeTickTime = 0.0;
+    minTreeTickTime = std::numeric_limits<double>::max();
+    treeTickCount = 0;
+
     joySubscription = create_subscription<booster_interface::msg::RemoteControllerState>("/remote_controller_state", 10, bind(&Brain::joystickCallback, this, _1));
     gameControlSubscription = create_subscription<game_controller_interface::msg::GameControlData>("/robocup/game_controller", 1, bind(&Brain::gameControlCallback, this, _1));
     detectionsSubscription = create_subscription<vision_interface::msg::Detections>("/booster_vision/detection", 1, bind(&Brain::detectionsCallback, this, _1));
@@ -121,15 +140,29 @@ void Brain::tick()
     // Record loop start time
     loopStartTime = get_clock()->now();
 
+    // Time updateMemory()
+    auto updateMemoryStart = get_clock()->now();
     updateMemory();
+    auto updateMemoryEnd = get_clock()->now();
+    double currentUpdateMemoryTime = (updateMemoryEnd - updateMemoryStart).nanoseconds() / 1e6; // Convert to milliseconds
+
+    // Time updateCollaboration()
+    auto updateCollaborationStart = get_clock()->now();
     updateCollaboration();
+    auto updateCollaborationEnd = get_clock()->now();
+    double currentUpdateCollaborationTime = (updateCollaborationEnd - updateCollaborationStart).nanoseconds() / 1e6; // Convert to milliseconds
+
+    // Time tree->tick()
+    auto treeTickStart = get_clock()->now();
     tree->tick();
+    auto treeTickEnd = get_clock()->now();
+    double currentTreeTickTime = (treeTickEnd - treeTickStart).nanoseconds() / 1e6; // Convert to milliseconds
 
     // Calculate loop execution time
     auto loopEndTime = get_clock()->now();
     double currentLoopTime = (loopEndTime - loopStartTime).nanoseconds() / 1e6; // Convert to milliseconds
 
-    // Update statistics
+    // Update overall loop statistics
     totalLoopTime += currentLoopTime;
     loopCount++;
 
@@ -140,26 +173,98 @@ void Brain::tick()
         minLoopTime = currentLoopTime;
     }
 
+    // Update updateMemory statistics
+    totalUpdateMemoryTime += currentUpdateMemoryTime;
+    updateMemoryCount++;
+    if (currentUpdateMemoryTime > maxUpdateMemoryTime) {
+        maxUpdateMemoryTime = currentUpdateMemoryTime;
+    }
+    if (currentUpdateMemoryTime < minUpdateMemoryTime) {
+        minUpdateMemoryTime = currentUpdateMemoryTime;
+    }
+
+    // Update updateCollaboration statistics
+    totalUpdateCollaborationTime += currentUpdateCollaborationTime;
+    updateCollaborationCount++;
+    if (currentUpdateCollaborationTime > maxUpdateCollaborationTime) {
+        maxUpdateCollaborationTime = currentUpdateCollaborationTime;
+    }
+    if (currentUpdateCollaborationTime < minUpdateCollaborationTime) {
+        minUpdateCollaborationTime = currentUpdateCollaborationTime;
+    }
+
+    // Update tree->tick() statistics
+    totalTreeTickTime += currentTreeTickTime;
+    treeTickCount++;
+    if (currentTreeTickTime > maxTreeTickTime) {
+        maxTreeTickTime = currentTreeTickTime;
+    }
+    if (currentTreeTickTime < minTreeTickTime) {
+        minTreeTickTime = currentTreeTickTime;
+    }
+
+    // Log timing data to rerun every 100 loops
+    static int logCounter = 0;
+    logCounter++;
+    if (logCounter % 100 == 0) {
+        // Calculate averages
+        double avgLoopTime = totalLoopTime / loopCount;
+        double avgUpdateMemoryTime = totalUpdateMemoryTime / updateMemoryCount;
+        double avgUpdateCollaborationTime = totalUpdateCollaborationTime / updateCollaborationCount;
+        double avgTreeTickTime = totalTreeTickTime / treeTickCount;
+
+        // Log to rerun
+        log->setTimeNow();
+        log->log("timing/loop_time", rerun::Scalar(currentLoopTime));
+        log->log("timing/loop_time_avg", rerun::Scalar(avgLoopTime));
+
+        log->log("timing/update_memory_time", rerun::Scalar(currentUpdateMemoryTime));
+        log->log("timing/update_memory_time_avg", rerun::Scalar(avgUpdateMemoryTime));
+
+        log->log("timing/update_collaboration_time", rerun::Scalar(currentUpdateCollaborationTime));
+        log->log("timing/update_collaboration_time_avg", rerun::Scalar(avgUpdateCollaborationTime));
+
+        log->log("timing/tree_tick_time", rerun::Scalar(currentTreeTickTime));
+        log->log("timing/tree_tick_time_avg", rerun::Scalar(avgTreeTickTime));
+
+        // Log function breakdown as text
+        log->log("timing/function_breakdown", 
+            rerun::TextLog(format("Loop: %.2fms (avg:%.2fms), Memory: %.2fms (avg:%.2fms), Collaboration: %.2fms (avg:%.2fms), Tree: %.2fms (avg:%.2fms)",
+                currentLoopTime, avgLoopTime, currentUpdateMemoryTime, avgUpdateMemoryTime, 
+                currentUpdateCollaborationTime, avgUpdateCollaborationTime, currentTreeTickTime, avgTreeTickTime)));
+    }
+
     // Output statistics every 1000 loops (approximately every 1-10 seconds depending on loop frequency)
     static int outputCounter = 0;
     outputCounter++;
     if (outputCounter % 1000 == 0) {
         double avgLoopTime = totalLoopTime / loopCount;
+        double avgUpdateMemoryTime = totalUpdateMemoryTime / updateMemoryCount;
+        double avgUpdateCollaborationTime = totalUpdateCollaborationTime / updateCollaborationCount;
+        double avgTreeTickTime = totalTreeTickTime / treeTickCount;
         double loopFrequency = 1000.0 / avgLoopTime; // Hz
-
-        prtDebug(format("=== Loop 时间统计 (最近 %d 次循环) ===", loopCount));
-        prtDebug(format("当前循环时间: %.2f ms", currentLoopTime));
-        prtDebug(format("平均循环时间: %.2f ms", avgLoopTime));
-        prtDebug(format("最大循环时间: %.2f ms", maxLoopTime));
-        prtDebug(format("最小循环时间: %.2f ms", minLoopTime));
-        prtDebug(format("循环频率: %.1f Hz", loopFrequency));
-        prtDebug(format("总循环次数: %d", loopCount));
 
         // Reset statistics for next measurement period
         totalLoopTime = 0.0;
         maxLoopTime = 0.0;
         minLoopTime = std::numeric_limits<double>::max();
         loopCount = 0;
+        
+        totalUpdateMemoryTime = 0.0;
+        maxUpdateMemoryTime = 0.0;
+        minUpdateMemoryTime = std::numeric_limits<double>::max();
+        updateMemoryCount = 0;
+        
+        totalUpdateCollaborationTime = 0.0;
+        maxUpdateCollaborationTime = 0.0;
+        minUpdateCollaborationTime = std::numeric_limits<double>::max();
+        updateCollaborationCount = 0;
+        
+        totalTreeTickTime = 0.0;
+        maxTreeTickTime = 0.0;
+        minTreeTickTime = std::numeric_limits<double>::max();
+        treeTickCount = 0;
+        
         outputCounter = 0;
     }
 }
@@ -222,7 +327,7 @@ void Brain::calculateBallCost() {
         ballPos.x = data->ball.posToField.x;
         ballPos.y = data->ball.posToField.y;
         ballPosFound = true;
-        prtDebug("使用自己检测到的球位置计算成本");
+        log->logToScreen("cost_calculation/ball_detection", "Using own ball detection for cost calculation", 0x00FF00FF);
     } else {
         // 自己没看到球，尝试使用队友的球信息
         auto startTime = get_clock()->now();
@@ -237,12 +342,17 @@ void Brain::calculateBallCost() {
         ballInfoCallCount++;
         if (commTime > maxBallInfoTime) maxBallInfoTime = commTime;
 
-        if (ballInfoCallCount % 100 == 0) {
-            prtDebug(format("getTeammateBallInfo() 时间统计: 当前=%.3fms, 平均=%.3fms, 最大=%.3fms, 队友数=%zu",
-                commTime, totalBallInfoTime/ballInfoCallCount, maxBallInfoTime, teammatesBallInfo.size()));
+        if (ballInfoCallCount % 1 == 0) {
+            log->logToScreen("cost_calculation/communication_timing", 
+                format("getTeammateBallInfo() timing: current=%.3fms, avg=%.3fms, max=%.3fms, teammates=%zu",
+                    commTime, totalBallInfoTime/ballInfoCallCount, maxBallInfoTime, teammatesBallInfo.size()), 
+                0xFFFF00FF);
         }
 
         if (!teammatesBallInfo.empty()) {
+            log->logToScreen("cost_calculation/teammates_available", 
+                format("Found %zu teammates with ball info", teammatesBallInfo.size()), 0x80FF00FF);
+            
             // 找到距离自己最近的球位置
             double minDistance = std::numeric_limits<double>::infinity();
             Point2D closestBallPos;
@@ -250,6 +360,10 @@ void Brain::calculateBallCost() {
 
             for (const auto& teammate : teammatesBallInfo) {
                 if (teammate.ballDetected) {
+                    log->logToScreen("cost_calculation/teammate_ball_found", 
+                        format("Teammate %d can see ball at (%.2f, %.2f)", 
+                            teammate.playerId, teammate.ballPosX, teammate.ballPosY), 0x00FF80FF);
+                    
                     // 计算球到自己的距离
                     double distance = std::sqrt(
                         std::pow(teammate.ballPosX - data->robotPoseToField.x, 2) +
@@ -262,14 +376,20 @@ void Brain::calculateBallCost() {
                         closestBallPos.y = teammate.ballPosY;
                         closestTeammateId = teammate.playerId;
                         ballPosFound = true;
+                        
+                        log->logToScreen("cost_calculation/closest_teammate_update", 
+                            format("Updated closest teammate to %d (distance: %.2fm)", 
+                                closestTeammateId, minDistance), 0x80FFFF00);
                     }
                 }
             }
 
             if (ballPosFound) {
                 ballPos = closestBallPos;
-                prtDebug(format("使用队友 %d 检测到的球位置计算成本 (距离: %.2fm)",
-                    closestTeammateId, minDistance));
+                log->logToScreen("cost_calculation/teammate_ball_usage", 
+                    format("Using teammate %d ball position for cost calculation (distance: %.2fm)",
+                        closestTeammateId, minDistance), 
+                    0x00FFFF00);
             }
         }
     }
@@ -277,7 +397,7 @@ void Brain::calculateBallCost() {
     // 如果所有人都没看到球，返回无穷
     if (!ballPosFound) {
         data->ballCost = std::numeric_limits<double>::infinity();
-        prtDebug("所有机器人都没检测到球，成本设为无穷");
+        log->logToScreen("cost_calculation/no_ball_detected", "No robots can detect ball, cost set to infinity", 0xFF0000FF);
         return;
     }
 
@@ -328,21 +448,31 @@ void Brain::processMasterDecision() {
         robotPoses.push_back({teammate.playerId, {teammate.robotPoseX, teammate.robotPoseY, teammate.robotPoseTheta}});
         // prtDebug(format("队友信息: ID=%d, cost=%.2f, pose=(%.2f,%.2f,%.2f)", 
         //     teammate.playerId, teammate.ballCost, teammate.robotPoseX, teammate.robotPoseY, teammate.robotPoseTheta));
+        // Log teammate cost to rerun screen
+        log->logToScreen(format("collaboration/teammate_costs/player_%d", teammate.playerId), 
+            format("Teammate %d Cost: %.2f", teammate.playerId, teammate.ballCost), 
+            0x00FFFF00);
     }
 
     // Find robot with minimum cost for ball possession
     int bestRobotId = config->playerId;
     double minCost = data->ballCost;
+    bool isOneInf = false;
 
     for (const auto& robotCost : robotCosts) {
         if (robotCost.second < minCost) {
             minCost = robotCost.second;
             bestRobotId = robotCost.first;
         }
+
+        if(std::isinf(robotCost.second)) {
+            isOneInf = true;
+        }
     }
 
     // Check if all costs are infinite (no one can see the ball)
-    if (std::isinf(minCost)) {
+    if (isOneInf) {
+        return;
         // No one can see the ball, clear ball possession but keep role assignments
         int oldPossessionId = data->possessionPlayerId;
         data->possessionPlayerId = -1;
