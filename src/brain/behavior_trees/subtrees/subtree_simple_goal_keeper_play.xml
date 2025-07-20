@@ -23,7 +23,7 @@
                         <ScriptCondition name="Ball in opponent half?" code="ball_x > 0.0" />
                         <Sequence name="ball_in_our_half">
                            <IfThenElse>
-                              <ScriptCondition name="Ball within 4 meters?" code="ball_range <= 4.0" />
+                              <ScriptCondition name="Ball within 4 meters?" code="ball_range <= 6.0" />
                               <Sequence name="chase_ball">
                                  <!-- <PrintMsg msg="Ball in our half and within 4 meters, starting chase with dist=0.1" /> -->
                                  <Chase 

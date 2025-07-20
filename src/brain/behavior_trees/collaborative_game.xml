@@ -1,7 +1,7 @@
 <root BTCPP_format="4">
     <include path="./subtrees/subtree_cam_find_and_track_ball.xml" />
     <include path="./subtrees/subtree_simple_striker_play.xml" />
-    <include path="./subtrees/subtree_simple_goal_keeper_play.xml" />
+    <include path="./subtrees/subtree_goal_keeper_play.xml" />
     <include path="./subtrees/subtree_striker_play.xml" />
     <include path="./subtrees/subtree_striker_freekick.xml" />
     <include path="./subtrees/subtree_goal_keeper_freekick.xml" />
@@ -54,7 +54,7 @@
                             <!-- 动态角色为守门员的机器人始终执行守门策略 -->
                             <ReactiveSequence _while="is_dynamic_goal_keeper" name="dynamic_goalkeeper_play">
                                 <!-- <PrintMsg msg="[TREE] Current role: Goalkeeper (dynamic_role: {dynamic_role})" /> -->
-                                <SubTree ID="SimpleGoalKeeperPlay" _autoremap="true" />
+                                <SubTree ID="GoalKeeperPlay" _autoremap="true" />
                             </ReactiveSequence>
 
                             <!-- 动态角色为主攻击手且拥有球权的机器人执行攻击策略 -->
