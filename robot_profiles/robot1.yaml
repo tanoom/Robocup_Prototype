@@ -16,7 +16,7 @@ brain:
     vx_factor: 0.9
     yaw_offset: 0.1
 description: Striker, left starting position
-name: '248'
+name: '253'
 network:
   interfaces:
   - 127.0.0.1

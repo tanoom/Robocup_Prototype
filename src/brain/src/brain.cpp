@@ -412,7 +412,7 @@ void Brain::processMasterDecision() {
     static auto lastValidBallTimeStamp = get_clock()->now();
 
     // Anti-oscillation threshold for ball cost difference
-    constexpr double POSSESSION_COST_DIFF_THRESHOLD = 6; // You can tune this value
+    constexpr double POSSESSION_COST_DIFF_THRESHOLD = 3; // You can tune this value
 
     // Collect cost information from all robots (including self)
     std::vector<std::pair<int, double>> robotCosts;
@@ -511,7 +511,7 @@ void Brain::processMasterDecision() {
         bool updatePossession = true;
         if (oldPossessionId != -1 && oldPossessionId != bestRobotId && !std::isinf(oldPossessionCost)) {
             double costDiff = minCost - oldPossessionCost;
-            if (costDiff > -POSSESSION_COST_DIFF_THRESHOLD) {
+            if (fabs(costDiff) < POSSESSION_COST_DIFF_THRESHOLD) {
                 // The new best is not significantly better, do not update possession
                 updatePossession = false;
                 prtDebug(format("Master决策: 球权防抖动，bestId=%d, oldId=%d, bestCost=%.2f, oldCost=%.2f, diff=%.2f < 阈值%.2f，保持原球权",

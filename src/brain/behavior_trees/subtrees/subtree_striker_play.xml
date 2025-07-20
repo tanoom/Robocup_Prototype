@@ -2,7 +2,7 @@
    <include path="./subtree_cam_find_and_track_ball.xml" />
    <include path="./subtree_find_ball.xml" />
    <BehaviorTree ID="StrikerPlay">
-      <ReactiveSequence _while="player_role == 'striker'">
+      <ReactiveSequence>
          <ReactiveSequence _while="wait_for_opponent_kickoff" name="wait">
             <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
             <SelfLocate mode="penalty_point_localize" _while="odom_calibrated" />

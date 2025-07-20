@@ -60,7 +60,7 @@
                             <!-- 动态角色为主攻击手且拥有球权的机器人执行攻击策略 -->
                             <ReactiveSequence _while="is_dynamic_striker && has_ball_possession" name="striker_with_possession">
                                 <!-- <PrintMsg msg="[TREE] Current role: Striker with possession (dynamic_role: {dynamic_role})" /> -->
-                                <SubTree ID="SimpleStrikerPlay" _autoremap="true" />
+                                <SubTree ID="StrikerPlay" _autoremap="true" />
                             </ReactiveSequence>
 
                             <!-- 动态角色为跟随者或主攻击手但没有球权的机器人跟随有球权的机器人 -->

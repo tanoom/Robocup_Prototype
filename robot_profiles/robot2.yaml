@@ -4,7 +4,7 @@ brain:
     field_type: adult_size
     player_id: 1
     player_role: striker
-    player_start_pos: right
+    player_start_pos: left
     team_id: 17
   rerunLog:
     enable: true
@@ -23,7 +23,7 @@ network:
   - 192.168.10.101
   - 192.168.10.102
 sftp:
-  host: 192.168.4.245
+  host: 192.168.4.167
   password: '123456'
   port: 22
   remotePath: /home/booster/Workspace/playground/robocup_prototype
