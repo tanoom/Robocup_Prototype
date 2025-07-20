@@ -1775,32 +1775,45 @@ void FollowTeammate::onHalted()
 std::pair<double, double> FollowTeammate::calculateFollowPosition(double teammateX, double teammateY,
                                                                 double ballX, double ballY, double followDistance)
 {
-    // Simple approach: calculate two fixed positions relative to teammate (left-back and right-back)
-    // without considering the teammate's rotation or ball direction
+    // Calculate positions towards our goal direction
+    // Assume our goal is at negative X direction (left side)
+    double ourGoalX = -brain->config->fieldDimensions.length / 2.0;
     
-    // Fixed offset positions: left-back and right-back relative to teammate
-    double leftBackX = teammateX - followDistance * 0.866;  // cos(30°) = 0.866
-    double leftBackY = teammateY + followDistance * 0.5;    // sin(30°) = 0.5
+    // Calculate direction vector from striker to our goal
+    double goalDirX = ourGoalX - teammateX;
+    double goalDirLength = fabs(goalDirX); // Only use X direction magnitude
     
-    double rightBackX = teammateX - followDistance * 0.866; // cos(30°) = 0.866  
-    double rightBackY = teammateY - followDistance * 0.5;   // sin(-30°) = -0.5
+    // Normalize the direction (only X component matters, Y direction will be perpendicular)
+    double dirX = (goalDirLength > 1e-6) ? goalDirX / goalDirLength : -1.0; // Default to left if too close to goal
+    
+    // Calculate the two candidate positions:
+    // Both positions are towards our goal direction from striker, with vertical offset
+    double baseFollowX = teammateX + dirX * followDistance;  // Move towards our goal
+    double baseFollowY = teammateY;  // Same Y as striker
+    
+    // Two candidate positions: above and below the striker
+    double upPositionX = baseFollowX;
+    double upPositionY = baseFollowY + followDistance * 0.5;    // Above striker
+    
+    double downPositionX = baseFollowX; 
+    double downPositionY = baseFollowY - followDistance * 0.5;   // Below striker
 
     // Calculate distances from current position to both options
     double currentX = brain->data->robotPoseToField.x;
     double currentY = brain->data->robotPoseToField.y;
 
-    double distToLeft = sqrt(pow(currentX - leftBackX, 2) + pow(currentY - leftBackY, 2));
-    double distToRight = sqrt(pow(currentX - rightBackX, 2) + pow(currentY - rightBackY, 2));
+    double distToUp = sqrt(pow(currentX - upPositionX, 2) + pow(currentY - upPositionY, 2));
+    double distToDown = sqrt(pow(currentX - downPositionX, 2) + pow(currentY - downPositionY, 2));
 
     // Choose the closer position
-    if (distToLeft < distToRight) {
+    if (distToUp < distToDown) {
         brain->log->logToScreen("FollowTeammate",
-            format("Following left-back position (%.2f, %.2f)", leftBackX, leftBackY), 0x00FFFFFF);
-        return {leftBackX, leftBackY};
+            format("Following up position towards goal (%.2f, %.2f)", upPositionX, upPositionY), 0x00FFFFFF);
+        return {upPositionX, upPositionY};
     } else {
         brain->log->logToScreen("FollowTeammate",
-            format("Following right-back position (%.2f, %.2f)", rightBackX, rightBackY), 0x00FFFFFF);
-        return {rightBackX, rightBackY};
+            format("Following down position towards goal (%.2f, %.2f)", downPositionX, downPositionY), 0x00FFFFFF);
+        return {downPositionX, downPositionY};
     }
 }
 
