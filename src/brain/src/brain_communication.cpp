@@ -2,6 +2,9 @@
 #include "brain_communication.h"
 #include <cmath>
 #include <sstream>
+#include <thread>
+#include <chrono>
+#include <pthread.h>
 
 BrainCommunication::BrainCommunication(Brain *argBrain) : brain(argBrain)
 {
@@ -9,6 +12,15 @@ BrainCommunication::BrainCommunication(Brain *argBrain) : brain(argBrain)
 
 BrainCommunication::~BrainCommunication()
 {
+    // Stop dashboard thread first
+    _dashboard_running = false;
+    if (_dashboard_thread.joinable()) {
+        _dashboard_thread.join();
+    }
+    if (_dashboard_socket >= 0) {
+        close(_dashboard_socket);
+    }
+    
     clearupGameControllerBroadcast();
     clearupDiscoveryBroadcast();
     clearupDiscoveryReceiver();
@@ -623,7 +635,17 @@ void BrainCommunication::initDashboard() {
     }
     
     _dashboard_enabled = true;
-    cout << GREEN_CODE << format("Dashboard initialized: %s:%s", dashboard_ip, dashboard_port) << RESET_CODE << endl;
+    
+    // Start dashboard thread with lower priority
+    _dashboard_running = true;
+    try {
+        _dashboard_thread = std::thread(&BrainCommunication::runDashboardLoop, this);
+        cout << GREEN_CODE << format("Dashboard initialized: %s:%s", dashboard_ip, dashboard_port) << RESET_CODE << endl;
+    } catch (const std::exception& e) {
+        cout << YELLOW_CODE << "Failed to start dashboard thread: " << e.what() << ", continuing without dashboard" << RESET_CODE << endl;
+        _dashboard_enabled = false;
+        _dashboard_running = false;
+    }
 }
 
 void BrainCommunication::sendDashboardData() {
@@ -714,4 +736,39 @@ void BrainCommunication::sendDashboardData() {
     } catch (...) {
         // Ignore dashboard errors silently
     }
+}
+
+void BrainCommunication::runDashboardLoop() {
+    // Set lower thread priority to not interfere with robot control
+    pthread_t this_thread = pthread_self();
+    struct sched_param params;
+    params.sched_priority = 1; // Lower priority (normal is around 20)
+    
+    if (pthread_setschedparam(this_thread, SCHED_OTHER, &params) != 0) {
+        cout << YELLOW_CODE << "Failed to set dashboard thread priority" << RESET_CODE << endl;
+    }
+    
+    cout << GREEN_CODE << "Dashboard thread started with lower priority" << RESET_CODE << endl;
+    
+    // Dashboard runs at 5Hz (every 200ms) - much slower than robot control
+    const auto dashboard_interval = std::chrono::milliseconds(200);
+    auto next_send = std::chrono::steady_clock::now();
+    
+    while (_dashboard_running) {
+        try {
+            // Send dashboard data
+            sendDashboardData();
+            
+            // Wait for next interval (non-blocking timing)
+            next_send += dashboard_interval;
+            std::this_thread::sleep_until(next_send);
+            
+        } catch (...) {
+            // If dashboard fails, wait a bit before retrying
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            next_send = std::chrono::steady_clock::now();
+        }
+    }
+    
+    cout << GREEN_CODE << "Dashboard thread stopped" << RESET_CODE << endl;
 }
