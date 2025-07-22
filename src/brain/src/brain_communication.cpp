@@ -1,6 +1,7 @@
 #include "brain.h"
 #include "brain_communication.h"
 #include <cmath>
+#include <sstream>
 
 BrainCommunication::BrainCommunication(Brain *argBrain) : brain(argBrain)
 {
@@ -587,4 +588,130 @@ std::vector<BrainCommunication::TeammateInfo> BrainCommunication::getTeammateCol
     }
     
     return teammates;
+}
+
+// Dashboard implementation
+void BrainCommunication::initDashboard() {
+    // Get dashboard configuration from environment or default
+    const char* dashboard_ip = std::getenv("DASHBOARD_IP");
+    const char* dashboard_port = std::getenv("DASHBOARD_PORT");
+    
+    if (!dashboard_ip) {
+        dashboard_ip = "192.168.4.77";  // Default Mac IP
+    }
+    if (!dashboard_port) {
+        dashboard_port = "8080";  // Default port
+    }
+    
+    // Create UDP socket for dashboard
+    _dashboard_socket = socket(AF_INET, SOCK_DGRAM, 0);
+    if (_dashboard_socket < 0) {
+        cout << YELLOW_CODE << "Dashboard socket creation failed, continuing without dashboard" << RESET_CODE << endl;
+        return;
+    }
+    
+    // Configure dashboard address
+    memset(&_dashboard_addr, 0, sizeof(_dashboard_addr));
+    _dashboard_addr.sin_family = AF_INET;
+    _dashboard_addr.sin_port = htons(std::atoi(dashboard_port));
+    
+    if (inet_pton(AF_INET, dashboard_ip, &_dashboard_addr.sin_addr) <= 0) {
+        cout << YELLOW_CODE << "Invalid dashboard IP: " << dashboard_ip << ", continuing without dashboard" << RESET_CODE << endl;
+        close(_dashboard_socket);
+        _dashboard_socket = -1;
+        return;
+    }
+    
+    _dashboard_enabled = true;
+    cout << GREEN_CODE << format("Dashboard initialized: %s:%s", dashboard_ip, dashboard_port) << RESET_CODE << endl;
+}
+
+void BrainCommunication::sendDashboardData() {
+    if (!_dashboard_enabled || _dashboard_socket < 0) return;
+    
+    try {
+        // Create simple JSON string manually
+        std::ostringstream json;
+        json << "{";
+        
+        // Robot identification
+        json << "\"robot_id\":" << brain->config->playerId << ",";
+        json << "\"robot_name\":\"robot" << (brain->config->playerId + 1) << "\",";
+        json << "\"team_id\":" << brain->config->teamId << ",";
+        json << "\"timestamp\":" << brain->get_clock()->now().seconds() << ",";
+        
+        // Game state
+        json << "\"game\":{";
+        json << "\"state\":\"" << brain->tree->getEntry<string>("gc_game_state") << "\",";
+        json << "\"kickoff_side\":" << (brain->tree->getEntry<bool>("gc_is_kickoff_side") ? "true" : "false") << ",";
+        json << "\"score\":" << brain->data->lastScore;
+        json << "},";
+        
+        // Robot pose
+        json << "\"robot\":{";
+        json << "\"pose\":{";
+        json << "\"x\":" << brain->data->robotPoseToField.x << ",";
+        json << "\"y\":" << brain->data->robotPoseToField.y << ",";
+        json << "\"theta\":" << brain->data->robotPoseToField.theta;
+        json << "},";
+        
+        // Ball information
+        json << "\"ball\":{";
+        json << "\"detected\":" << (brain->data->ballDetected ? "true" : "false");
+        if (brain->data->ballDetected) {
+            json << ",\"x\":" << brain->data->ball.posToField.x;
+            json << ",\"y\":" << brain->data->ball.posToField.y;
+            json << ",\"range\":" << brain->data->ball.range;
+        }
+        json << "}";
+        json << "},";
+        
+        // Collaboration
+        json << "\"collaboration\":{";
+        json << "\"role\":\"" << brain->config->collaborationRole << "\",";
+        json << "\"dynamic_role\":" << brain->data->dynamicRole << ",";
+        json << "\"has_possession\":" << (brain->tree->getEntry<bool>("has_ball_possession") ? "true" : "false") << ",";
+        json << "\"possession_player\":" << brain->data->possessionPlayerId << ",";
+        json << "\"ball_cost\":" << brain->data->ballCost;
+        json << "},";
+        
+        // Behavior
+        json << "\"behavior\":{";
+        json << "\"decision\":\"" << brain->tree->getEntry<string>("decision") << "\",";
+        json << "\"ball_location_known\":" << (brain->tree->getEntry<bool>("ball_location_known") ? "true" : "false");
+        json << "},";
+        
+        // Performance
+        double avgLoopTime = brain->totalLoopTime / std::max(brain->loopCount, 1);
+        json << "\"performance\":{";
+        json << "\"avg_loop_time\":" << avgLoopTime << ",";
+        json << "\"max_loop_time\":" << brain->maxLoopTime;
+        json << "},";
+        
+        // Head tracking
+        json << "\"head\":{";
+        json << "\"pitch\":" << brain->data->headPitch << ",";
+        json << "\"yaw\":" << brain->data->headYaw;
+        json << "},";
+        
+        // Recovery state
+        json << "\"recovery\":{";
+        json << "\"state\":" << static_cast<int>(brain->data->recoveryState) << ",";
+        json << "\"available\":" << (brain->data->isRecoveryAvailable ? "true" : "false");
+        json << "},";
+        
+        // Team data
+        auto teammates = getTeammateCollaborationInfo();
+        json << "\"team_count\":" << teammates.size();
+        
+        json << "}";
+        
+        // Send data (non-blocking)
+        std::string jsonStr = json.str();
+        sendto(_dashboard_socket, jsonStr.c_str(), jsonStr.length(), MSG_DONTWAIT,
+               (struct sockaddr*)&_dashboard_addr, sizeof(_dashboard_addr));
+        
+    } catch (...) {
+        // Ignore dashboard errors silently
+    }
 }
