@@ -70,6 +70,7 @@ public:
     
     // Dashboard methods
     void initDashboard();
+    void sendDashboardData();
 
 private:
     Brain *brain;
@@ -140,8 +141,4 @@ private:
     int _dashboard_socket = -1;
     sockaddr_in _dashboard_addr;
     bool _dashboard_enabled = false;
-    std::thread _dashboard_thread;
-    bool _dashboard_running = false;
-    void runDashboardLoop();
-    void sendDashboardData();
 };

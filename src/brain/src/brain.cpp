@@ -237,7 +237,13 @@ void Brain::tick()
                 currentUpdateCollaborationTime, avgUpdateCollaborationTime, currentTreeTickTime, avgTreeTickTime)));
     }
 
-    // Dashboard now runs in separate thread with lower priority
+    // Send dashboard data every 30 loops (approximately every 300ms at 100Hz)
+    // Reduced frequency for multi-robot scenarios
+    static int dashboardCounter = 0;
+    dashboardCounter++;
+    if (dashboardCounter % 30 == 0) {
+        communication->sendDashboardData();
+    }
 
     // Output statistics every 1000 loops (approximately every 1-10 seconds depending on loop frequency)
     static int outputCounter = 0;
