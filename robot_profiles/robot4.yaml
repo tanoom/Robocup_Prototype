@@ -23,7 +23,7 @@ network:
   - 192.168.10.101
   - 192.168.10.102
 sftp:
-  host: 192.168.5.82
+  host: 192.168.5.147
   password: '123456'
   port: 22
   remotePath: /home/booster/Workspace/playground/robocup_prototype

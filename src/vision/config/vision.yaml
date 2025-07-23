@@ -2,41 +2,41 @@ show_res: false
 camera:
   type: realsense
   intrin:
-    fx: 643.657532
-    fy: 642.791077
-    cx: 647.286255
-    cy: 369.939545
-    distortion_model: 1
+    fx: 643.898
+    fy: 643.216
+    cx: 649.038
+    cy: 357.21
+    distortion_model: 2
     distortion_coeffs:
-    - -0.0563431717
-    - 0.066704601
-    - -0.000166566533
-    - 0.000589234929
-    - -0.0215061288
+    - -0.0553056
+    - 0.065975
+    - -0.000994232
+    - 2.98548e-05
+    - -0.0216579
   extrin:
   -
-    - 0.0102362549
-    - 0.0190763455
-    - 0.999765635
-    - 0.00547224423
+    - 0.05659255
+    - 0.03014561
+    - 0.99794215
+    - 0.04217854
   -
-    - -0.999935746
-    - -0.00468532182
-    - 0.010327396
-    - -0.0200457573
+    - -0.99839673
+    - 0.00283376
+    - 0.05653273
+    - 0.01405556
   -
-    - 0.00488123251
-    - -0.99980706
-    - 0.0190271549
-    - -0.0149038192
+    - -0.00112372
+    - -0.9995415
+    - 0.03025765
+    - -0.01538294
   -
-    - 0
-    - 0
-    - 0
-    - 1
-  pitch_compensation: 0
-  yaw_compensation: 0
-  z_compensation: 0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+  pitch_compensation: 0.0
+  yaw_compensation: 0.0
+  z_compensation: 0.0
 detection_model:
   model_path: ./src/vision/model/best_orin_10.3.engine
   confidence_threshold: 0.2
@@ -52,7 +52,3 @@ human_like_pose_estimator:
   down_sample_leaf_size: 0.01
   fitting_distance_threshold: 0.01
   statistic_outlier_multiplier: 0.01
-calibration:
-  handeye:
-    calibration_time: 2025-07-19-10-16-35
-    reprojection_error: 3.800620079021223
