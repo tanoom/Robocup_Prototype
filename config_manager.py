@@ -155,6 +155,10 @@ class RobotConfigManager:
     
     enable_com: true
 
+    dashboard:
+      ip: "{brain_config.get('dashboard', {}).get('ip', '192.168.5.75')}"
+      port: {brain_config.get('dashboard', {}).get('port', 8080)}
+
     rerunLog:
       enable: true
       server_addr: "{brain_config['rerunLog']['server_addr']}"
@@ -165,7 +169,10 @@ class RobotConfigManager:
         with open(brain_path, 'w', encoding='utf-8') as f:
             f.write(yaml_content)
         
-        print(f"  ✓ Updated Brain configuration: player_id={brain_config['game']['player_id']}, role={brain_config['game']['player_role']}, collaboration_role={brain_config['game']['collaboration_role']}")
+        dashboard_config = brain_config.get('dashboard', {})
+        dashboard_ip = dashboard_config.get('ip', '192.168.5.75')
+        dashboard_port = dashboard_config.get('port', 8080)
+        print(f"  ✓ Updated Brain configuration: player_id={brain_config['game']['player_id']}, role={brain_config['game']['player_role']}, collaboration_role={brain_config['game']['collaboration_role']}, dashboard={dashboard_ip}:{dashboard_port}")
     
     def update_fastdds_config(self, network_config):
         """Update FastDDS network configuration"""
@@ -359,6 +366,8 @@ class RobotConfigManager:
             print(f"   Role: {robot_config['brain']['game']['player_role']}")
             print(f"   Starting position: {robot_config['brain']['game']['player_start_pos']}")
             print(f"   Collaboration role: {robot_config['brain']['game']['collaboration_role']}")
+            dashboard_config = robot_config['brain'].get('dashboard', {})
+            print(f"   Dashboard: {dashboard_config.get('ip', '192.168.5.75')}:{dashboard_config.get('port', 8080)}")
             
             return True
             
