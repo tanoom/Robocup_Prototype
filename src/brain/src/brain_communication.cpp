@@ -628,15 +628,19 @@ std::vector<BrainCommunication::TeammateInfo> BrainCommunication::getTeammateCol
 
 // Dashboard implementation
 void BrainCommunication::initDashboard() {
-    // Get dashboard configuration from environment or default
-    const char* dashboard_ip = std::getenv("DASHBOARD_IP");
-    const char* dashboard_port = std::getenv("DASHBOARD_PORT");
+    // Get dashboard configuration from brain config
+    std::string dashboard_ip;
+    int dashboard_port;
     
-    if (!dashboard_ip) {
-        dashboard_ip = "192.168.5.75";  // Default Mac IP
+    brain->get_parameter("dashboard.ip", dashboard_ip);
+    brain->get_parameter("dashboard.port", dashboard_port);
+    
+    // Use defaults if not configured
+    if (dashboard_ip.empty()) {
+        dashboard_ip = "127.0.0.1";  // Default Mac IP
     }
-    if (!dashboard_port) {
-        dashboard_port = "8080";  // Default port
+    if (dashboard_port == 0) {
+        dashboard_port = 8080;  // Default port
     }
     
     // Create UDP socket for dashboard
@@ -649,9 +653,9 @@ void BrainCommunication::initDashboard() {
     // Configure dashboard address
     memset(&_dashboard_addr, 0, sizeof(_dashboard_addr));
     _dashboard_addr.sin_family = AF_INET;
-    _dashboard_addr.sin_port = htons(std::atoi(dashboard_port));
+    _dashboard_addr.sin_port = htons(dashboard_port);
     
-    if (inet_pton(AF_INET, dashboard_ip, &_dashboard_addr.sin_addr) <= 0) {
+    if (inet_pton(AF_INET, dashboard_ip.c_str(), &_dashboard_addr.sin_addr) <= 0) {
         cout << YELLOW_CODE << "Invalid dashboard IP: " << dashboard_ip << ", continuing without dashboard" << RESET_CODE << endl;
         close(_dashboard_socket);
         _dashboard_socket = -1;
@@ -659,7 +663,7 @@ void BrainCommunication::initDashboard() {
     }
     
     _dashboard_enabled = true;
-    cout << GREEN_CODE << format("Dashboard initialized: %s:%s", dashboard_ip, dashboard_port) << RESET_CODE << endl;
+    cout << GREEN_CODE << format("Dashboard initialized: %s:%d", dashboard_ip.c_str(), dashboard_port) << RESET_CODE << endl;
 }
 
 void BrainCommunication::sendDashboardData() {

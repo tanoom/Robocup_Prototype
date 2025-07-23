@@ -6,6 +6,9 @@ brain:
     player_role: goal_keeper
     player_start_pos: left
     team_id: 31
+  dashboard:
+    ip: "192.168.5.75"
+    port: 8080
   rerunLog:
     enable: true
     img_interval: 1
