@@ -67,6 +67,10 @@ public:
     
     // 获取队友协作信息
     std::vector<TeammateInfo> getTeammateCollaborationInfo();
+    
+    // Dashboard methods
+    void initDashboard();
+    void sendDashboardData();
 
 private:
     Brain *brain;
@@ -132,4 +136,9 @@ private:
     std::thread _communication_recv_thread;
     int _communication_recv_socket = -1;
     int _communication_recv_port = 0;
+    
+    // Dashboard communication
+    int _dashboard_socket = -1;
+    sockaddr_in _dashboard_addr;
+    bool _dashboard_enabled = false;
 };

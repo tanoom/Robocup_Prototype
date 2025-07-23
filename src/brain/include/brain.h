@@ -86,6 +86,12 @@ public:
     // 执行罚球点定位
     bool executePenaltyPointLocalize();
 
+    // Public getters for timing statistics
+    double getTotalLoopTime() const { return totalLoopTime; }
+    double getMaxLoopTime() const { return maxLoopTime; }
+    double getMinLoopTime() const { return minLoopTime; }
+    int getLoopCount() const { return loopCount; }
+
 private:
     void loadConfig();
 
