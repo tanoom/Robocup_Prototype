@@ -7,26 +7,26 @@ brain:
     player_start_pos: right
     team_id: 17
   dashboard:
-    ip: "192.168.5.232"
+    ip: "192.168.5.75"
     port: 8080
   rerunLog:
     enable: true
     img_interval: 1
-    server_addr: 192.168.5.77:9876
+    server_addr: 192.168.4.77:9876
   robot:
     odom_factor: 1.2
     robot_height: 1.0
     vx_factor: 0.9
     yaw_offset: 0.1
 description: Striker, left starting position
-name: '244'
+name: '253'
 network:
   interfaces:
   - 127.0.0.1
   - 192.168.10.101
   - 192.168.10.102
 sftp:
-  host: 192.168.5.232
+  host: 192.168.4.2
   password: '123456'
   port: 22
   remotePath: /home/booster/Workspace/robocup_prototype
