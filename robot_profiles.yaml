@@ -1,4 +1,4 @@
-current_robot: robot4
+current_robot: robot1
 robot_profiles:
   robot1: robot_profiles/robot1.yaml
   robot2: robot_profiles/robot2.yaml
