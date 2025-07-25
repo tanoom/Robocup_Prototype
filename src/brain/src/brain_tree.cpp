@@ -588,6 +588,8 @@ NodeStatus StrikerDecide::tick()
     getInput("chase_threshold", chaseRangeThreshold);
     double kickRangeThreshold;
     getInput("kick_range_threshold", kickRangeThreshold);
+    double dribbleRangeThreshold;
+    getInput("dribble_range_threshold", dribbleRangeThreshold);
     string lastDecision, position;
     getInput("decision_in", lastDecision);
     getInput("position", position);
@@ -601,8 +603,13 @@ NodeStatus StrikerDecide::tick()
     double ballRange = brain->data->ball.range;
     double ballYaw = brain->data->ball.yawToRobot;
 
-    // Add kick range threshold - ball must be close enough to actually kick
+    // Calculate angle difference between current direction and desired kick direction
+    double angleDiff = fabs(toPInPI(kickDir - dir_rb_f));
+    
+    // Add range thresholds
     bool ballInKickRange = (ballRange <= kickRangeThreshold);
+    bool ballInDribbleRange = (ballRange <= dribbleRangeThreshold);
+    bool angleInDribbleRange = (angleDiff <= dribbleRangeThreshold); // Use dribble_range_threshold as angle threshold too
 
     string newDecision;
     auto color = 0xFFFFFFFF; // for log
@@ -616,7 +623,12 @@ NodeStatus StrikerDecide::tick()
         newDecision = "chase";
         color = 0x00FF00FF;
     }
-    else if (angleIsGood)
+    else if (angleInDribbleRange)
+    {
+        newDecision = "chasetotarget";
+        color = 0xFFFF00FF; // Yellow for dribble
+    }
+    else if (angleIsGood && ballInKickRange)
     {
         newDecision = "kick";
         color = 0xFF0000FF;
@@ -629,7 +641,7 @@ NodeStatus StrikerDecide::tick()
 
     setOutput("decision_out", newDecision);
     brain->log->logToScreen("tree/Decide",
-                            format("Decision: %s ballrange: %.2f ballyaw: %.2f kickDir: %.2f rbDir: %.2f angleIsGood: %d ballInKickRange: %d", newDecision.c_str(), ballRange, ballYaw, kickDir, dir_rb_f, angleIsGood, ballInKickRange),
+                            format("Decision: %s ballrange: %.2f ballyaw: %.2f kickDir: %.2f rbDir: %.2f angleIsGood: %d ballInKickRange: %d angleDiff: %.2f angleInDribbleRange: %d", newDecision.c_str(), ballRange, ballYaw, kickDir, dir_rb_f, angleIsGood, ballInKickRange, angleDiff, angleInDribbleRange),
                             color);
     return NodeStatus::SUCCESS;
 }
