@@ -47,6 +47,7 @@ void BrainTree::init()
     REGISTER_BUILDER(TurnToAngle)
     REGISTER_BUILDER(GoToTeammateBall)
     REGISTER_BUILDER(FollowTeammate)
+    REGISTER_BUILDER(TangentialAdjust)
 
     // GoalKeeper Nodes
     REGISTER_BUILDER(GoalKeeperPosition)
@@ -475,13 +476,7 @@ NodeStatus Adjust::tick()
     // Calculate speed scaling factor based on angle difference
     double angleDiff = fabs(deltaDir);
     double speedScale = 0.4;
-    // if (angleDiff > M_PI/2) {  // If angle difference is large (>45 degrees)
-    //     speedScale = 0.8;      // Move faster
-    // } else if (angleDiff > M_PI/4) {  // If angle difference is medium (>22.5 degrees)
-    //     speedScale = 0.6;      // Move moderately fast
-    // } else if (angleDiff > M_PI/8) {
-    //     speedScale = 0.3;      // Move moderately fast
-    // }
+
 
     std::cout << "[DEBUG] speedScale: " << speedScale << ", angleDiff: " << angleDiff << std::endl;
 
@@ -508,6 +503,81 @@ NodeStatus Adjust::tick()
     vtheta = cap(vtheta, vthetaLimit, -vthetaLimit);
 
     brain->client->setVelocity(vx, vy, vtheta);
+    return NodeStatus::SUCCESS;
+}
+
+NodeStatus TangentialAdjust::tick()
+{
+    if (!brain->tree->getEntry<bool>("ball_location_known"))
+    {
+        return NodeStatus::SUCCESS;
+    }
+
+    double turnThreshold, vxLimit, vyLimit, vthetaLimit, maxRange, minRange;
+    getInput("turn_threshold", turnThreshold);
+    getInput("vx_limit", vxLimit);
+    getInput("vy_limit", vyLimit);
+    getInput("vtheta_limit", vthetaLimit);
+    getInput("max_range", maxRange);
+    getInput("min_range", minRange);
+    string position;
+    getInput("position", position);
+
+    double ballRange = brain->data->ball.range;
+    double ballYaw = brain->data->ball.yawToRobot;
+
+    // Calculate desired kick direction
+    double kickDir = (position == "defense") ? 
+        atan2(brain->data->ball.posToField.y, brain->data->ball.posToField.x + brain->config->fieldDimensions.length / 2) : 
+        atan2(-brain->data->ball.posToField.y, brain->config->fieldDimensions.length / 2 - brain->data->ball.posToField.x);
+    
+    // Current robot-ball angle in field coordinates
+    double dir_rb_f = brain->data->robotBallAngleToField;
+    double deltaDir = toPInPI(kickDir - dir_rb_f);
+    
+    // Calculate two possible tangent directions
+    double tangent1 = ballYaw + M_PI / 2.0;  // Counterclockwise tangent
+    double tangent2 = ballYaw - M_PI / 2.0;  // Clockwise tangent
+    
+    // Choose the tangent direction that reduces angle difference to target
+    double diff1 = fabs(toPInPI(tangent1 - kickDir));
+    double diff2 = fabs(toPInPI(tangent2 - kickDir));
+    
+    double tangentAngle = (diff1 < diff2) ? tangent1 : tangent2;
+    
+    // Tangential speed
+    double s = 0.6;  // Base tangential speed
+    double vx = s * cos(tangentAngle);
+    double vy = s * sin(tangentAngle);
+    
+    // Distance control: maintain desired range to ball
+    if (ballRange > maxRange) {
+        vy += 0.1;  // Move closer to ball
+    } else if (ballRange < maxRange) {
+        vy -= 0.1;  // Move away from ball
+    }
+    
+    // Rotation control: ensure robot faces tangent direction
+    double currentTheta = brain->data->robotPoseToField.theta;
+    double targetTheta = currentTheta + tangentAngle;
+    double rotationNeeded = toPInPI(targetTheta - currentTheta);
+    
+    double vtheta = rotationNeeded * 2.0;
+    
+    // Apply velocity limits
+    vx = cap(vx, vxLimit, -vxLimit);
+    vy = cap(vy, vyLimit, -vyLimit);
+    vtheta = cap(vtheta, vthetaLimit, -vthetaLimit);
+
+    brain->client->setVelocity(vx, vy, vtheta);
+    
+    // Debug information
+    double angleDiff = fabs(deltaDir);
+    brain->log->logToScreen("TangentialAdjust",
+        format("AngleDiff: %.2f°, Tangent: %.2f°, Speed: (%.2f,%.2f,%.2f)", 
+               rad2deg(angleDiff), rad2deg(tangentAngle), vx, vy, vtheta),
+        0x00FFFF00);
+    
     return NodeStatus::SUCCESS;
 }
 
@@ -546,7 +616,7 @@ NodeStatus StrikerDecide::tick()
         newDecision = "chase";
         color = 0x00FF00FF;
     }
-    else if (angleIsGood) //TODO Change it back ballInKickRange
+    else if (angleIsGood)
     {
         newDecision = "kick";
         color = 0xFF0000FF;

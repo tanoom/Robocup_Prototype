@@ -32,6 +32,9 @@ Brain::Brain() : rclcpp::Node("brain_node")
 
     declare_parameter<bool>("enable_com", true);
 
+    declare_parameter<string>("dashboard.ip", "192.168.5.75");
+    declare_parameter<int>("dashboard.port", 8080);
+
     // The tree_file_path is configured in launch.py and not placed in config.yaml.
     declare_parameter<string>("tree_file_path", "");
 }
@@ -123,6 +126,9 @@ void Brain::loadConfig()
     get_parameter("rerunLog.enable", config->rerunLogEnable);
     get_parameter("rerunLog.server_addr", config->rerunLogServerAddr);
     get_parameter("rerunLog.img_interval", config->rerunLogImgInterval);
+
+    get_parameter("dashboard.ip", config->dashboardIp);
+    get_parameter("dashboard.port", config->dashboardPort);
 
     get_parameter("tree_file_path", config->treeFilePath);
 

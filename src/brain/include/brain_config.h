@@ -43,6 +43,9 @@ public:
     string rerunLogServerAddr; // Corresponds to rerunLog.server_addr  rerunLog address
     int rerunLogImgInterval;   // Corresponds to rerunLog.img_interval the interval to record the images
 
+    string dashboardIp;        // Corresponds to dashboard.ip  Dashboard server IP address
+    int dashboardPort;         // Corresponds to dashboard.port  Dashboard server port
+
     string treeFilePath; //  It is no longer placed in config.yaml; the path to the behavior-tree file is now specified in launch.py.
     // ----------  end config from config.yaml ---------------------------------------------
 

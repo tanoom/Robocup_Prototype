@@ -629,18 +629,21 @@ std::vector<BrainCommunication::TeammateInfo> BrainCommunication::getTeammateCol
 // Dashboard implementation
 void BrainCommunication::initDashboard() {
     // Get dashboard configuration from brain config
-    std::string dashboard_ip;
-    int dashboard_port;
+    std::string dashboard_ip = brain->config->dashboardIp;
+    int dashboard_port = brain->config->dashboardPort;
     
-    brain->get_parameter("dashboard.ip", dashboard_ip);
-    brain->get_parameter("dashboard.port", dashboard_port);
+    // Debug: Print what we got from config
+    cout << YELLOW_CODE << format("DEBUG: Dashboard config - IP: '%s', Port: %d", 
+        dashboard_ip.c_str(), dashboard_port) << RESET_CODE << endl;
     
     // Use defaults if not configured
     if (dashboard_ip.empty()) {
-        dashboard_ip = "127.0.0.1";  // Default Mac IP
+        dashboard_ip = "192.168.5.75";  // Default dashboard IP (matches declare_parameter)
+        cout << YELLOW_CODE << "DEBUG: Using default IP: " << dashboard_ip << RESET_CODE << endl;
     }
     if (dashboard_port == 0) {
-        dashboard_port = 8080;  // Default port
+        dashboard_port = 8080;  // Default port (matches declare_parameter)
+        cout << YELLOW_CODE << "DEBUG: Using default port: " << dashboard_port << RESET_CODE << endl;
     }
     
     // Create UDP socket for dashboard
