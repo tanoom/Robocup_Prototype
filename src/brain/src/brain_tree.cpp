@@ -513,69 +513,92 @@ NodeStatus TangentialAdjust::tick()
         return NodeStatus::SUCCESS;
     }
 
-    double turnThreshold, vxLimit, vyLimit, vthetaLimit, maxRange, minRange;
+    double turnThreshold, vxLimit, vyLimit, vthetaLimit, maxRange, minRange, distanceAdjustmentFactor;
     getInput("turn_threshold", turnThreshold);
     getInput("vx_limit", vxLimit);
     getInput("vy_limit", vyLimit);
     getInput("vtheta_limit", vthetaLimit);
     getInput("max_range", maxRange);
     getInput("min_range", minRange);
+    getInput("distance_adjustment_factor", distanceAdjustmentFactor);
     string position;
     getInput("position", position);
 
     double ballRange = brain->data->ball.range;
     double ballYaw = brain->data->ball.yawToRobot;
-
-    // Calculate desired kick direction
-    double kickDir = (position == "defense") ? 
-        atan2(brain->data->ball.posToField.y, brain->data->ball.posToField.x + brain->config->fieldDimensions.length / 2) : 
-        atan2(-brain->data->ball.posToField.y, brain->config->fieldDimensions.length / 2 - brain->data->ball.posToField.x);
-    
-    // Current robot-ball angle in field coordinates
     double dir_rb_f = brain->data->robotBallAngleToField;
-    double deltaDir = toPInPI(kickDir - dir_rb_f);
+
+    // Check if we're in a good shooting angle
+    auto goalPostAngles = brain->getGoalPostAngles(0.5);
+    double theta_l = goalPostAngles[0];
+    double theta_r = goalPostAngles[1];
+    bool angleIsGood = (theta_l > dir_rb_f && theta_r < dir_rb_f);
     
-    // Calculate two possible tangent directions
-    double tangent1 = ballYaw + M_PI / 2.0;  // Counterclockwise tangent
-    double tangent2 = ballYaw - M_PI / 2.0;  // Clockwise tangent
+    // Check if robot is facing the ball
+    double faceBallThreshold = deg2rad(15.0); // 15 degrees tolerance
+    bool robotFacingBall = (fabs(ballYaw) <= faceBallThreshold);
     
-    // Choose the tangent direction that reduces angle difference to target
-    double diff1 = fabs(toPInPI(tangent1 - kickDir));
-    double diff2 = fabs(toPInPI(tangent2 - kickDir));
+    // Calculate movement variables
+    double speedScale = 0.4;
+    double s = speedScale;
+    double vx = 0.0, vy = 0.0, vtheta = 0.0;
     
-    double tangentAngle = (diff1 < diff2) ? tangent1 : tangent2;
+    // Determine direction for circular movement
+    double deltaDir = toPInPI(atan2(-brain->data->ball.posToField.y, brain->config->fieldDimensions.length / 2 - brain->data->ball.posToField.x) - dir_rb_f);
+    double direction = deltaDir > 0 ? -1.0 : 1.0;
     
-    // Tangential speed
-    double s = 0.6;  // Base tangential speed
-    double vx = s * cos(tangentAngle);
-    double vy = s * sin(tangentAngle);
-    
-    // Distance control: maintain desired range to ball
-    if (ballRange > maxRange) {
-        vy += 0.1;  // Move closer to ball
-    } else if (ballRange < maxRange) {
-        vy -= 0.1;  // Move away from ball
+    if (angleIsGood && !robotFacingBall) {
+        // We're in good shooting position but not facing ball - just turn to face ball
+        vx = 0.0;
+        vy = 0.0;
+        vtheta = ballYaw * 3.0; // Strong turning to face ball
+        brain->log->logToScreen("TangentialAdjust", "In good angle, turning to face ball", 0x00FF00FF);
+    } else {
+        // Continue circular adjustment to get better angle
+        // Calculate desired tangent direction for circular path
+        // Tangent is perpendicular to the radius (ball_yaw direction)
+        double desiredTangentAngle = ballYaw + direction * M_PI / 2;
+        
+        // Calculate robot's current heading angle difference from desired tangent
+        // We want robot to face along the tangent direction
+        double currentRobotHeading = 0; // Robot's local x-axis direction
+        double headingError = toPInPI(desiredTangentAngle - currentRobotHeading);
+        
+        // Main movement along tangent direction (forward/backward)
+        // Use vx (forward/backward) as primary movement
+        vx = s; // Move forward along tangent
+        
+        // Small lateral adjustment to maintain circular path
+        // Use vy for fine distance adjustments
+        vy = 0.1 * direction * cos(ballYaw); // Small lateral component
+        
+        // Maintain distance to ball
+        if (ballRange > maxRange) {
+            // Move slightly toward ball (reduce radius)
+            vx += distanceAdjustmentFactor * cos(ballYaw);
+            vy += distanceAdjustmentFactor * sin(ballYaw);
+        } else if (ballRange < minRange) {
+            // Move slightly away from ball (increase radius)
+            vx -= distanceAdjustmentFactor * cos(ballYaw);
+            vy -= distanceAdjustmentFactor * sin(ballYaw);
+        }
+        
+        // Turn robot to face tangent direction
+        vtheta = headingError * 2.0; // P-controller for heading
+        // brain->log->logToScreen("TangentialAdjust", "Circling to improve angle", 0x00FFFFFF);
     }
     
-    // Rotation control: ensure robot faces tangent direction
-    double currentTheta = brain->data->robotPoseToField.theta;
-    double targetTheta = currentTheta + tangentAngle;
-    double rotationNeeded = toPInPI(targetTheta - currentTheta);
-    
-    double vtheta = rotationNeeded * 2.0;
-    
-    // Apply velocity limits
+    // Apply limits
     vx = cap(vx, vxLimit, -vxLimit);
     vy = cap(vy, vyLimit, -vyLimit);
     vtheta = cap(vtheta, vthetaLimit, -vthetaLimit);
-
+    
     brain->client->setVelocity(vx, vy, vtheta);
     
     // Debug information
-    double angleDiff = fabs(deltaDir);
     brain->log->logToScreen("TangentialAdjust",
-        format("AngleDiff: %.2f°, Tangent: %.2f°, Speed: (%.2f,%.2f,%.2f)", 
-               rad2deg(angleDiff), rad2deg(tangentAngle), vx, vy, vtheta),
+        format("AngleGood: %d, FacingBall: %d, Speed: (%.2f,%.2f,%.2f)", 
+               angleIsGood, robotFacingBall, vx, vy, vtheta),
         0x00FFFF00);
     
     return NodeStatus::SUCCESS;
@@ -603,6 +626,15 @@ NodeStatus StrikerDecide::tick()
 
     // Add kick range threshold - ball must be close enough to actually kick
     bool ballInKickRange = (ballRange <= kickRangeThreshold);
+    
+    // Check if robot is facing the ball
+    // Define the threshold for considering the robot as "facing the ball"
+    double faceBallThreshold = deg2rad(15.0); // 15 degrees in radians
+    bool robotFacingBall = (fabs(ballYaw) <= faceBallThreshold);
+    
+    // Decision logic
+    double chaseThresholdActual = chaseRangeThreshold * (lastDecision == "chase" ? 0.9 : 1.0);
+    bool chaseCondition = (ballRange > chaseThresholdActual);
 
     string newDecision;
     auto color = 0xFFFFFFFF; // for log
@@ -616,7 +648,7 @@ NodeStatus StrikerDecide::tick()
         newDecision = "chase";
         color = 0x00FF00FF;
     }
-    else if (angleIsGood)
+    else if (angleIsGood && robotFacingBall)
     {
         newDecision = "kick";
         color = 0xFF0000FF;

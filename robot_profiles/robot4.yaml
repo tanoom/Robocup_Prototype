@@ -1,10 +1,10 @@
 brain:
   game:
-    collaboration_role: slave
+    collaboration_role: master
     field_type: adult_size
     player_id: 2
-    player_role: goal_keeper
-    player_start_pos: left
+    player_role: striker
+    player_start_pos: right
     team_id: 31
   dashboard:
     ip: "192.168.5.75"
@@ -12,7 +12,7 @@ brain:
   rerunLog:
     enable: true
     img_interval: 1
-    server_addr: 192.168.5.172:9876
+    server_addr: 192.168.4.110:9876
   robot:
     odom_factor: 1.2
     robot_height: 1.0
@@ -26,7 +26,7 @@ network:
   - 192.168.10.101
   - 192.168.10.102
 sftp:
-  host: 192.168.5.147
+  host: 192.168.4.162
   password: '123456'
   port: 22
   remotePath: /home/booster/Workspace/playground/robocup_prototype
@@ -35,3 +35,58 @@ sftp:
     - .vscode
     - .git
     - .DS_Store 
+vision:
+  show_res: false
+  camera:
+    type: realsense
+    intrin:
+      fx: 642.753418
+      fy: 642.111084
+      cx: 643.532227
+      cy: 367.085724
+      distortion_model: 1
+      distortion_coeffs:
+        - -0.0561492667
+        - 0.0654542521
+        - -0.000988338375
+        - 0.000662671111
+        - -0.0213696938
+    extrin:
+      -
+        - 0.05659255
+        - 0.03014561
+        - 0.99794215
+        - 0.04217854
+      -
+        - -0.99839673
+        - 0.00283376
+        - 0.05653273
+        - 0.01405556
+      -
+        - -0.00112372
+        - -0.9995415
+        - 0.03025765
+        - -0.01538294
+      -
+        - 0.0
+        - 0.0
+        - 0.0
+        - 1.0
+    pitch_compensation: 0.0
+    yaw_compensation: 0.0
+    z_compensation: 0.0
+  detection_model:
+    model_path: ./src/vision/model/best_orin_10.3.engine
+    confidence_threshold: 0.2
+  use_depth: true
+  ball_pose_estimator:
+    use_depth: False
+    radius: 1.109
+    down_sample_leaf_size: 0.01
+    cluster_distance_threshold: 0.01
+    fitting_distance_threshold: 0.01
+  human_like_pose_estimator:
+    use_depth: False
+    down_sample_leaf_size: 0.01
+    fitting_distance_threshold: 0.01
+    statistic_outlier_multiplier: 0.01
