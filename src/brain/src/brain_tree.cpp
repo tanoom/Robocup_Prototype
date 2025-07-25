@@ -333,10 +333,24 @@ NodeStatus ChaseToTarget::tick()
     getInput("dist", dist);
     getInput("target_x", targetX);
     getInput("target_y", targetY);
-    getInput("turn_factor", turnFactor); // How aggressively to turn towards target (0.0-1.0)
+    getInput("turn_factor", turnFactor);
+    
+    // NEW DRIBBLING PARAMETERS
+    bool enableDribbling;
+    double dribbleDistance;
+    double dribbleKickPower;
+    int dribbleKickDuration;
+    int dribbleCooldown;
+    
+    getInput("enable_dribbling", enableDribbling);
+    getInput("dribble_distance", dribbleDistance);
+    getInput("dribble_kick_power", dribbleKickPower);
+    getInput("dribble_kick_duration", dribbleKickDuration);
+    getInput("dribble_cooldown", dribbleCooldown);
 
     double ballRange = brain->data->ball.range;
     double ballYaw = brain->data->ball.yawToRobot;
+    auto currentTime = brain->get_clock()->now();
 
     // Calculate desired direction from ball to target
     double ballToTargetAngle = atan2(targetY - brain->data->ball.posToField.y, 
@@ -348,21 +362,119 @@ NodeStatus ChaseToTarget::tick()
     // Calculate angle difference (how much we need to turn)
     double angleDiff = toPInPI(ballToTargetAngle - currentRobotBallAngle);
 
+    // DRIBBLING LOGIC
+    if (enableDribbling) {
+        prtDebug(format("ChaseToTarget: Dribbling enabled, state=%s, ballRange=%.3f, dribbleDistance=%.3f", 
+                       _state.c_str(), ballRange, dribbleDistance));
+        
+        // Check if we're currently executing a dribble kick
+        if (_state == "dribble_kick") {
+            brain->log->logToScreen("ChaseToTarget/main", "Dribble kick finished, entering cooldown", 0xFFFF00FF);
+            // Safe time calculation - check if start time is valid
+            if (_dribbleKickStartTime.get_clock_type() != RCL_CLOCK_UNINITIALIZED) {
+                double kickElapsed = (currentTime - _dribbleKickStartTime).seconds() * 1000.0; // Convert to ms
+                prtDebug(format("ChaseToTarget/main: Dribble kick in progress, elapsed=%.0fms, duration=%dms", 
+                               kickElapsed, dribbleKickDuration));
+                
+                if (kickElapsed < dribbleKickDuration) {
+                    // Continue the kick
+                    double kickVx = vxLimit * dribbleKickPower;
+                    double kickVy = 0.0; // Straight forward kick
+                    brain->client->setVelocity(kickVx, kickVy, 0, false, false, false);
+                    
+                    brain->log->logToScreen("ChaseToTarget/main",
+                        format("DRIBBLE KICK! Duration: %.0fms", kickElapsed), 0xFF0000FF);
+                    prtDebug(format("ChaseToTarget: Executing kick with vx=%.3f, power=%.3f", kickVx, dribbleKickPower));
+                    return NodeStatus::SUCCESS;
+                } else {
+                    // Kick finished, enter cooldown
+                    _state = "dribble_cooldown";
+                    _lastDribbleKickTime = currentTime;
+                    brain->log->logToScreen("ChaseToTarget/main", "Dribble kick finished, entering cooldown", 0xFFFF00FF);
+                    prtDebug("ChaseToTarget: Kick finished, entering cooldown");
+                }
+            } else {
+                // Invalid start time, restart kick
+                _dribbleKickStartTime = currentTime;
+                prtDebug("ChaseToTarget: Invalid kick start time, restarting");
+            }
+        }
+        
+        // Check if we're in cooldown period
+        if (_state == "dribble_cooldown") {
+            // Safe time calculation - check if last kick time is valid
+            if (_lastDribbleKickTime.get_clock_type() != RCL_CLOCK_UNINITIALIZED) {
+                double cooldownElapsed = (currentTime - _lastDribbleKickTime).seconds() * 1000.0; // Convert to ms
+                prtDebug(format("ChaseToTarget: In cooldown, elapsed=%.0fms, cooldown=%dms", 
+                               cooldownElapsed, dribbleCooldown));
+                
+                if (cooldownElapsed < dribbleCooldown) {
+                    // Stay in cooldown, continue normal chase behavior but don't kick
+                    brain->log->logToScreen("ChaseToTarget/main",
+                        format("Dribble cooldown: %.0fms remaining", dribbleCooldown - cooldownElapsed), 0x00FFFF00);
+                    // Don't return here - let normal chase logic continue
+                } else {
+                    // Cooldown finished, return to normal chasing
+                    _state = "chase";
+                    brain->log->logToScreen("ChaseToTarget/main", "Dribble cooldown finished, resuming chase", 0x00FF00FF);
+                    prtDebug("ChaseToTarget: Cooldown finished, resuming chase");
+                }
+            } else {
+                // Invalid last kick time, reset to chase
+                _state = "chase";
+                prtDebug("ChaseToTarget: Invalid last kick time, resetting to chase");
+            }
+        }
+        
+        // Check if we should trigger a dribble kick
+        if (_state != "dribble_kick" && _state != "dribble_cooldown" && ballRange <= dribbleDistance) {
+            // Check if enough time has passed since last kick
+            bool canKick = true;
+            if (_lastDribbleKickTime.get_clock_type() != RCL_CLOCK_UNINITIALIZED) {
+                double timeSinceLastKick = (currentTime - _lastDribbleKickTime).seconds() * 1000.0; // Convert to ms
+                canKick = (timeSinceLastKick >= dribbleCooldown);
+                prtDebug(format("ChaseToTarget: Time since last kick=%.0fms, cooldown=%dms, canKick=%d", 
+                               timeSinceLastKick, dribbleCooldown, canKick));
+            } else {
+                prtDebug("ChaseToTarget: No previous kick time, can kick immediately");
+            }
+            
+            if (canKick) {
+                // Trigger dribble kick
+                _state = "dribble_kick";
+                _dribbleKickStartTime = currentTime;
+                _isDribbleKicking = true;
+                
+                brain->log->logToScreen("ChaseToTarget/main", 
+                    format("TRIGGERING DRIBBLE KICK! Ball range: %.2f", ballRange), 0xFF0000FF);
+                prtDebug(format("ChaseToTarget: Triggering dribble kick, ballRange=%.3f, state=%s", 
+                               ballRange, _state.c_str()));
+                return NodeStatus::SUCCESS;
+            } else {
+                prtDebug("ChaseToTarget: Cannot kick yet, still in cooldown period");
+            }
+        }
+        
+        // If dribbling is enabled, use smaller distance for closer approach
+        dist = min(dist, dribbleDistance - 0.05); // Stay slightly closer than kick trigger distance to ensure dribbling activates
+    }
+
+    // NORMAL CHASE LOGIC (modified for dribbling compatibility)
     Pose2D target_f, target_r;
     
     // Same logic as original Chase for determining when to circle back
     if (brain->data->robotPoseToField.x - brain->data->ball.posToField.x > (_state == "chase" ? 1.0 : 0.0))
     {
-        _state = "circle_back";
+        if (_state != "dribble_kick" && _state != "dribble_cooldown") {
+            _state = "circle_back";
+        }
 
         target_f.x = brain->data->ball.posToField.x - dist;
 
         // Modify circling direction to favor target direction
-        // If we need to turn left (positive angle), circle left; if right, circle right
         double targetInfluencedDir = _dir;
-        if (fabs(angleDiff) > 0.2) { // Only change direction if angle difference is significant
+        if (fabs(angleDiff) > 0.2) {
             targetInfluencedDir = (angleDiff > 0) ? 1.0 : -1.0;
-            // Smooth transition between directions
             _dir = _dir * 0.7 + targetInfluencedDir * 0.3;
         }
 
@@ -370,15 +482,15 @@ NodeStatus ChaseToTarget::tick()
     }
     else
     { // chase
-        _state = "chase";
+        if (_state != "dribble_kick" && _state != "dribble_cooldown") {
+            _state = "chase";
+        }
         target_f.x = brain->data->ball.posToField.x - dist;
         
         // Gradually adjust chase position towards target direction
-        // This creates a lateral offset that steers the ball towards the target
-        double maxLateralOffset = dist * 0.8; // Maximum lateral adjustment
+        double maxLateralOffset = dist * 0.8;
         double lateralOffset = sin(angleDiff) * maxLateralOffset * turnFactor;
         
-        // Limit the lateral offset to prevent too aggressive turning
         lateralOffset = cap(lateralOffset, maxLateralOffset, -maxLateralOffset);
         
         target_f.y = brain->data->ball.posToField.y + lateralOffset;
@@ -391,10 +503,10 @@ NodeStatus ChaseToTarget::tick()
     
     // Modify angular velocity to gradually turn towards target
     double baseVtheta = ballYaw * 2.0;
-    double targetTurnInfluence = angleDiff * turnFactor * 0.3; // Gradual turning influence
+    double targetTurnInfluence = angleDiff * turnFactor * 0.3;
     double vtheta = baseVtheta + targetTurnInfluence;
 
-    double linearFactor = 1 / (1 + exp(3 * (ballRange * fabs(ballYaw)) - 3));
+    double linearFactor = 1 / (1 + exp(3 * (ballRange * fabs(ballYaw)) - 3)) * 1.5;
     vx *= linearFactor;
     vy *= linearFactor;
 
@@ -404,11 +516,23 @@ NodeStatus ChaseToTarget::tick()
 
     brain->client->setVelocity(vx, vy, vtheta, false, false, false);
     
-    // Log information for debugging
-    brain->log->logToScreen("ChaseToTarget",
-                           format("State: %s, AngleDiff: %.2f°, Target: (%.2f, %.2f)", 
-                                  _state.c_str(), rad2deg(angleDiff), targetX, targetY),
+    // Enhanced logging for dribbling
+    string stateInfo = enableDribbling ? format("State: %s, Dribbling: ON", _state.c_str()) : 
+                                       format("State: %s, Dribbling: OFF", _state.c_str());
+    brain->log->logToScreen("ChaseToTarget/tmp",
+                           format("%s, Range: %.2f, AngleDiff: %.2f°", 
+                                  stateInfo.c_str(), ballRange, rad2deg(angleDiff)),
                            0x00FF00FF);
+    
+    // Comprehensive debug logging
+    prtDebug(format("ChaseToTarget: Final state=%s, ballRange=%.3f, dist=%.3f, targetPos=(%.2f,%.2f)", 
+                   _state.c_str(), ballRange, dist, targetX, targetY));
+    prtDebug(format("ChaseToTarget: velocity=(%.3f,%.3f,%.3f), angleDiff=%.2f°, enableDribbling=%d", 
+                   vx, vy, vtheta, rad2deg(angleDiff), enableDribbling));
+    if (enableDribbling) {
+        prtDebug(format("ChaseToTarget: dribbleDistance=%.3f, kickPower=%.2f, kickDuration=%dms, cooldown=%dms", 
+                       dribbleDistance, dribbleKickPower, dribbleKickDuration, dribbleCooldown));
+    }
     
     return NodeStatus::SUCCESS;
 }
@@ -596,10 +720,17 @@ NodeStatus StrikerDecide::tick()
 
     double kickDir = (position == "defense") ? atan2(brain->data->ball.posToField.y, brain->data->ball.posToField.x + brain->config->fieldDimensions.length / 2) : atan2(-brain->data->ball.posToField.y, brain->config->fieldDimensions.length / 2 - brain->data->ball.posToField.x);
     double dir_rb_f = brain->data->robotBallAngleToField;
+
     auto goalPostAngles = brain->getGoalPostAngles(0.5);
     double theta_l = goalPostAngles[0];
     double theta_r = goalPostAngles[1];
     bool angleIsGood = (theta_l > dir_rb_f && theta_r < dir_rb_f);
+
+    auto goalPostAnglesDribble = brain->getGoalPostAngles(1.5);
+    double theta_l_dribble = goalPostAnglesDribble[0];
+    double theta_r_dribble = goalPostAnglesDribble[1];
+    bool angleIsGoodDribble = (theta_l_dribble > dir_rb_f && theta_r_dribble < dir_rb_f);
+
     double ballRange = brain->data->ball.range;
     double ballYaw = brain->data->ball.yawToRobot;
 
@@ -609,7 +740,7 @@ NodeStatus StrikerDecide::tick()
     // Add range thresholds
     bool ballInKickRange = (ballRange <= kickRangeThreshold);
     bool ballInDribbleRange = (ballRange <= dribbleRangeThreshold);
-    bool angleInDribbleRange = (angleDiff <= dribbleRangeThreshold); // Use dribble_range_threshold as angle threshold too
+    bool angleInDribbleRange = (angleDiff <= 0.3); // Use dribble_range_threshold as angle threshold too
 
     string newDecision;
     auto color = 0xFFFFFFFF; // for log

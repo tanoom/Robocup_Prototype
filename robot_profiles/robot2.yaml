@@ -1,10 +1,10 @@
 brain:
   game:
-    collaboration_role: slave
+    collaboration_role: master
     field_type: adult_size
     player_id: 1
     player_role: striker
-    player_start_pos: left
+    player_start_pos: right
     team_id: 17
   dashboard:
     ip: "192.168.5.75"
@@ -12,7 +12,7 @@ brain:
   rerunLog:
     enable: true
     img_interval: 1
-    server_addr: 192.168.5.75:9876
+    server_addr: 192.168.4.110:9876
   robot:
     odom_factor: 1.2
     robot_height: 1.0

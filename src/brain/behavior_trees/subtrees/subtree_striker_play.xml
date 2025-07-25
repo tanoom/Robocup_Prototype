@@ -17,7 +17,19 @@
                      <SubTree ID="FindBall" _while="decision=='find'" _autoremap="true" />
                   </ReactiveSequence>
                   <Chase   _while="decision == 'chase'"  vx_limit="1.0"  vy_limit="0.4"  vtheta_limit="1.0"  dist="1.0"/>
-                  <ChaseToTarget _while="decision == 'chasetotarget'" vx_limit="0.8" vy_limit="0.3" vtheta_limit="0.8" dist="0.8" target_x="6.5" target_y="0.0" turn_factor="0.6" />
+                  <ChaseToTarget _while="decision == 'chasetotarget'" 
+                                 vx_limit="1.0" 
+                                 vy_limit="0.4" 
+                                 vtheta_limit="1.0" 
+                                 dist="0.2" 
+                                 target_x="6.5" 
+                                 target_y="0.0" 
+                                 turn_factor="0.6"
+                                 enable_dribbling="true"
+                                 dribble_distance="0.3"
+                                 dribble_kick_power="1.0"
+                                 dribble_kick_duration="250"
+                                 dribble_cooldown="1000" />
                   <Adjust  _while="decision == 'adjust'"     turn_threshold="0.4" max_range="0.6" min_range="0.4" vx_limit="0.2" vy_limit="0.2" vtheta_limit="1.0"  />
                   <Sequence  _while="decision == 'kick'">
                      <SetVelocity />

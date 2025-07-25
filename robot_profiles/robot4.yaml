@@ -12,7 +12,7 @@ brain:
   rerunLog:
     enable: true
     img_interval: 1
-    server_addr: 192.168.5.172:9876
+    server_addr: 192.168.4.110:9876
   robot:
     odom_factor: 1.2
     robot_height: 1.0
@@ -26,7 +26,7 @@ network:
   - 192.168.10.101
   - 192.168.10.102
 sftp:
-  host: 192.168.5.147
+  host: 192.168.4.162
   password: '123456'
   port: 22
   remotePath: /home/booster/Workspace/playground/robocup_prototype
