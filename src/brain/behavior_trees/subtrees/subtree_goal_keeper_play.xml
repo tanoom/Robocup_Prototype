@@ -13,7 +13,7 @@
             <Sequence>
                   <GoalieDecide decision_out="{decision}" decision_in="{decision}" chase_threshold="1.2" />
                   <Sequence _while="decision == 'find'">
-                     <RobotFindBall _while="ball_range <= 3.0" vyaw_limit="1.0" />
+                     <!-- <RobotFindBall _while="ball_range <= 3.0" vyaw_limit="1.0" /> -->
                      <MoveToPoseOnField _while="ball_range > 3.0" long_range_threshold="100.0" x="-6.5" />
                   </Sequence>
                   <MoveToPoseOnField _while="decision == 'retreat' || ball_range > 5.0" long_range_threshold="100.0" x="-6.5" />
