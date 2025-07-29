@@ -525,7 +525,7 @@ NodeStatus ChaseToTarget::tick()
                            0x00FF00FF);
     
     // Comprehensive debug logging
-    prtDebug(format("ChaseToTarget: Final state=%s, ballRange=%.3f, dist=%.3f, targetPos=(%.2f,%.2f)", 
+    prtDebug(format("ChaseToTarget: Final ` state=%s, ballRange=%.3f, dist=%.3f, targetPos=(%.2f,%.2f)", 
                    _state.c_str(), ballRange, dist, targetX, targetY));
     prtDebug(format("ChaseToTarget: velocity=(%.3f,%.3f,%.3f), angleDiff=%.2f°, enableDribbling=%d", 
                    vx, vy, vtheta, rad2deg(angleDiff), enableDribbling));
@@ -900,9 +900,6 @@ NodeStatus GoalieDecide::tick()
     double ballRange = brain->data->ball.range;
     double ballYaw = brain->data->ball.yawToRobot;
 
-    // Add kick range threshold for goalkeepers - ball must be close enough to actually kick
-    bool ballInKickRange = (ballRange <= kickRangeThreshold);
-
     string newDecision;
     auto color = 0xFFFFFFFF; // for log
     if (!brain->tree->getEntry<bool>("ball_location_known"))
@@ -920,7 +917,7 @@ NodeStatus GoalieDecide::tick()
         newDecision = "chase";
         color = 0x00FF00FF;
     }
-    else if (angleIsGood && ballInKickRange)
+    else if (angleIsGood)
     {
         newDecision = "kick";
         color = 0xFF0000FF;
