@@ -8,7 +8,6 @@
          
          <!-- Priority 1: Always ensure goalkeeper is at correct position -->
          <ReactiveSequence name="goalkeeper_positioning">
-            <GoBackInField valve="0.5" />
             <!-- <PrintMsg msg="GoBackInField completed, checking goalkeeper position" /> -->
             <IfThenElse>
                <ScriptCondition name="At goalkeeper position?" code="is_at_goalkeeper_position" />

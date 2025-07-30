@@ -68,6 +68,7 @@ void BrainTree::init()
 void BrainTree::initEntry()
 {
     setEntry<string>("player_role", brain->config->playerRole);
+    setEntry<int>("player_id", brain->config->playerId);
     setEntry<bool>("ball_location_known", false);
     setEntry<bool>("track_ball", true);
     setEntry<bool>("odom_calibrated", false);
@@ -888,6 +889,8 @@ NodeStatus GoalieDecide::tick()
     getInput("chase_threshold", chaseRangeThreshold);
     double kickRangeThreshold;
     getInput("kick_range_threshold", kickRangeThreshold);
+    double dribbleRangeThreshold;
+    getInput("dribble_range_threshold", dribbleRangeThreshold);
     string lastDecision, position;
     getInput("decision_in", lastDecision);
 
@@ -899,6 +902,14 @@ NodeStatus GoalieDecide::tick()
     bool angleIsGood = (dir_rb_f > -M_PI / 2 && dir_rb_f < M_PI / 2);
     double ballRange = brain->data->ball.range;
     double ballYaw = brain->data->ball.yawToRobot;
+
+    // Calculate angle difference between current direction and desired kick direction
+    double angleDiff = fabs(toPInPI(kickDir - dir_rb_f));
+    
+    // Add range thresholds
+    bool ballInKickRange = (ballRange <= kickRangeThreshold);
+    bool ballInDribbleRange = (ballRange <= dribbleRangeThreshold);
+    bool angleInDribbleRange = (angleDiff <= 0.3); // Use dribble_range_threshold as angle threshold too
 
     string newDecision;
     auto color = 0xFFFFFFFF; // for log
@@ -917,6 +928,11 @@ NodeStatus GoalieDecide::tick()
         newDecision = "chase";
         color = 0x00FF00FF;
     }
+    else if (angleInDribbleRange)
+    {
+        newDecision = "chasetotarget";
+        color = 0xFFFF00FF; // Yellow for dribble
+    }
     else if (angleIsGood)
     {
         newDecision = "kick";
@@ -930,7 +946,7 @@ NodeStatus GoalieDecide::tick()
 
     setOutput("decision_out", newDecision);
     brain->log->logToScreen("tree/Decide",
-                            format("Decision: %s ballrange: %.2f ballyaw: %.2f kickDir: %.2f rbDir: %.2f angleIsGood: %d ballInKickRange: %d", newDecision.c_str(), ballRange, ballYaw, kickDir, dir_rb_f, angleIsGood, ballInKickRange),
+                            format("Decision: %s ballrange: %.2f ballyaw: %.2f kickDir: %.2f rbDir: %.2f angleIsGood: %d ballInKickRange: %d angleDiff: %.2f angleInDribbleRange: %d", newDecision.c_str(), ballRange, ballYaw, kickDir, dir_rb_f, angleIsGood, ballInKickRange, angleDiff, angleInDribbleRange),
                             color);
     return NodeStatus::SUCCESS;
 }

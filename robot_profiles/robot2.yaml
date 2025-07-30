@@ -1,6 +1,6 @@
 brain:
   game:
-    collaboration_role: master
+    collaboration_role: slave
     field_type: adult_size
     player_id: 1
     player_role: striker
@@ -19,14 +19,14 @@ brain:
     vx_factor: 0.9
     yaw_offset: 0.1
 description: Striker, left starting position
-name: '258'
+name: '309'
 network:
   interfaces:
   - 127.0.0.1
   - 192.168.10.101
   - 192.168.10.102
 sftp:
-  host: 192.168.4.162
+  host: 192.168.4.46
   password: '123456'
   port: 22
   remotePath: /home/booster/Workspace/playground/robocup_prototype
@@ -40,33 +40,33 @@ vision:
   camera:
     type: realsense
     intrin:
-      fx: 643.103027
-      fy: 642.460327
-      cx: 643.532227
-      cy: 367.085724
+      fx: 645.983582
+      fy: 645.194458
+      cx: 649.106445
+      cy: 369.891418
       distortion_model: 1
       distortion_coeffs:
-        - -0.0561492667
-        - 0.0654542521
-        - -0.000988338375
-        - 0.000662671111
-        - -0.0213696938
+        - -0.0550094433
+        - 0.0643151253
+        - 0.000516743632
+        - -0.000553528138
+        - -0.021071732
     extrin:
       -
-        - -0.00377043546
-        - -0.00587862357
-        - 0.999975622
-        - 0.0086986674
+        - 0.0151948109
+        - -0.00387630961
+        - 0.999877036
+        - -0.0151309604
       -
-        - -0.999992192
-        - -0.00115927123
-        - -0.00377731351
-        - -0.0232544411
+        - -0.99987942
+        - 0.00314864842
+        - 0.015207055
+        - -0.0279978141
       -
-        - 0.00118144846
-        - -0.999982119
-        - -0.00587420724
-        - 0.00337361917
+        - -0.00320720859
+        - -0.999987483
+        - -0.00382799911
+        - -0.0420188345
       -
         - 0
         - 0
@@ -92,5 +92,5 @@ vision:
     statistic_outlier_multiplier: 0.01
   calibration:
     handeye:
-      calibration_time: 2025-07-20-15-56-53
-      reprojection_error: 4.0066343400550615
+      calibration_time: 2025-07-30-10-04-41
+      reprojection_error: 4.2429576182145281

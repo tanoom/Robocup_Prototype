@@ -80,6 +80,7 @@ public:
         return {
             InputPort<double>("chase_threshold", 1.0, "Perform the chasing action if the distance exceeds this threshold"),
             InputPort<double>("kick_range_threshold", 0.6, "Ball must be within this range (in meters) to enter kick mode"),
+            InputPort<double>("dribble_range_threshold", 0.3, "Ball must be within this range and angle threshold to enter chasetotarget mode"),
             InputPort<double>("adjust_angle_tolerance", 0.1, "Consider the adjustment successful if the angle is smaller than this value"),
             InputPort<double>("adjust_y_tolerance", 0.1, "Consider the y-direction adjustment successful if the offset is smaller than this value"),
             InputPort<string>("decision_in", "", "Used to read the last decision"),
