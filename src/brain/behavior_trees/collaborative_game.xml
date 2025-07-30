@@ -38,13 +38,13 @@
                             <MoveToPoseOnField x="-2.5" y="-1" _while="player_id == 1" vtheta_limit="2.0"  vx_limit="0.4" />
                             <MoveToPoseOnField x="-6.5" y="0" _while="player_id == 2" vtheta_limit="2.0"  vx_limit="0.4" />
                             <SelfLocate mode="trust_direction" />
-                            <WaveHand _while="we_just_scored" action="start" />
+                            <!-- <WaveHand _while="we_just_scored" action="start" /> -->
                         </ReactiveSequence>
 
                         <ReactiveSequence _while="gc_game_state=='SET'" name="set">
                             <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
                             <SetVelocity />
-                            <WaveHand action="stop" />
+                            <!-- <WaveHand action="stop" /> -->
                         </ReactiveSequence>
 
                         <!-- 协作逻辑的核心部分：在PLAY状态下根据动态角色分配执行不同策略 -->
