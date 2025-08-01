@@ -507,7 +507,7 @@ NodeStatus ChaseToTarget::tick()
     double targetTurnInfluence = angleDiff * turnFactor * 0.3;
     double vtheta = baseVtheta + targetTurnInfluence;
 
-    double linearFactor = 1 / (1 + exp(3 * (ballRange * fabs(ballYaw)) - 3)) * 1.5;
+    double linearFactor = 1 / (1 + exp(3 * (ballRange * fabs(ballYaw)) - 3)) * 1.5 + 0.1;
     vx *= linearFactor;
     vy *= linearFactor;
 
