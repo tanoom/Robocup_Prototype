@@ -40,33 +40,33 @@ vision:
   camera:
     type: realsense
     intrin:
-      fx: 645.983582
-      fy: 645.194458
-      cx: 649.106445
-      cy: 369.891418
+      fx: 644.410461
+      fy: 643.672363
+      cx: 639.951538
+      cy: 366.621368
       distortion_model: 1
       distortion_coeffs:
-        - -0.0550094433
-        - 0.0643151253
-        - 0.000516743632
-        - -0.000553528138
-        - -0.021071732
+        - -0.0543924868
+        - 0.0632535294
+        - -0.000189784376
+        - 4.12508271e-05
+        - -0.0201248787
     extrin:
       -
-        - 0.0151948109
-        - -0.00387630961
-        - 0.999877036
-        - -0.0151309604
+        - 0.00144160329
+        - -0.0349565446
+        - 0.999387801
+        - 0.020637827
       -
-        - -0.99987942
-        - 0.00314864842
-        - 0.015207055
-        - -0.0279978141
+        - -0.999970257
+        - -0.00762280822
+        - 0.00117581314
+        - -0.00235065399
       -
-        - -0.00320720859
-        - -0.999987483
-        - -0.00382799911
-        - -0.0420188345
+        - 0.0075770393
+        - -0.999359787
+        - -0.0349664986
+        - 0.034053456
       -
         - 0
         - 0
@@ -76,21 +76,21 @@ vision:
     yaw_compensation: 0
     z_compensation: 0
   detection_model:
-    model_path: ./src/vision/model/best_orin_10.3.engine
+    model_path: ./src/vision/model/best_orin.engine
     confidence_threshold: 0.2
   use_depth: true
   ball_pose_estimator:
-    use_depth: False
+    use_depth: false
     radius: 1.109
     down_sample_leaf_size: 0.01
     cluster_distance_threshold: 0.01
     fitting_distance_threshold: 0.01
   human_like_pose_estimator:
-    use_depth: False
+    use_depth: false
     down_sample_leaf_size: 0.01
     fitting_distance_threshold: 0.01
     statistic_outlier_multiplier: 0.01
   calibration:
     handeye:
-      calibration_time: 2025-07-30-10-04-41
-      reprojection_error: 4.2429576182145281
+      calibration_time: 2025-07-24-14-55-04
+      reprojection_error: 3.0568623267887318
