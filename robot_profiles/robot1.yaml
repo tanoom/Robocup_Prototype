@@ -7,26 +7,26 @@ brain:
     player_start_pos: right
     team_id: 17
   dashboard:
-    ip: "192.168.5.75"
+    ip: "192.168.4.112"
     port: 8080
   rerunLog:
     enable: true
     img_interval: 1
-    server_addr: 192.168.4.77:9876
+    server_addr: 192.168.4.243:9876
   robot:
     odom_factor: 1.2
     robot_height: 1.0
     vx_factor: 0.9
     yaw_offset: 0.1
 description: Striker, left starting position
-name: '253'
+name: '316'
 network:
   interfaces:
   - 127.0.0.1
   - 192.168.10.101
   - 192.168.10.102
 sftp:
-  host: 192.168.4.2
+  host: 192.168.4.139
   password: '123456'
   port: 22
   remotePath: /home/booster/Workspace/robocup_prototype
@@ -40,33 +40,33 @@ vision:
   camera:
     type: realsense
     intrin:
-      fx: 643.581665
-      fy: 642.838074
-      cx: 643.735657
-      cy: 368.360596
+      fx: 645.395203
+      fy: 644.742554
+      cx: 633.638245
+      cy: 372.768463
       distortion_model: 1
       distortion_coeffs:
-        - -0.0560964011
-        - 0.0661926344
-        - -0.000320490479
-        - -9.39076053e-05
-        - -0.021277396
+        - -0.0543744974
+        - 0.0616791919
+        - 0.000290292344
+        - 0.000375197968
+        - -0.0195346121
     extrin:
       -
-        - 0.00180072302
-        - -0.026696682
-        - 0.999642015
-        - 0.0096466681
+        - 0.00900757965
+        - -0.00382689526
+        - 0.999952078
+        - 0.0206229687
       -
-        - -0.999998271
-        - 0.000545835879
-        - 0.00181594212
-        - -0.028836485
+        - -0.999957502
+        - -0.00199060491
+        - 0.00900000986
+        - 0.0185910538
       -
-        - -0.000594120007
-        - -0.999643326
-        - -0.0266956501
-        - -0.0209911671
+        - 0.00195606728
+        - -0.999990702
+        - -0.0038446635
+        - -0.0286613312
       -
         - 0
         - 0
@@ -80,17 +80,17 @@ vision:
     confidence_threshold: 0.2
   use_depth: true
   ball_pose_estimator:
-    use_depth: false
+    use_depth: False
     radius: 1.109
     down_sample_leaf_size: 0.01
     cluster_distance_threshold: 0.01
     fitting_distance_threshold: 0.01
   human_like_pose_estimator:
-    use_depth: false
+    use_depth: False
     down_sample_leaf_size: 0.01
     fitting_distance_threshold: 0.01
     statistic_outlier_multiplier: 0.01
   calibration:
     handeye:
-      calibration_time: 2025-07-17-14-08-48
-      reprojection_error: 2.214936402236270
+      calibration_time: 2025-07-30-10-11-23
+      reprojection_error: 3.2159698148059861

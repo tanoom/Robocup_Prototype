@@ -57,6 +57,7 @@ public:
         return {
             InputPort<double>("chase_threshold", 1.0, "Perform the chasing action if the distance exceeds this threshold"),
             InputPort<double>("kick_range_threshold", 0.8, "Ball must be within this range (in meters) to enter kick mode"),
+            InputPort<double>("dribble_range_threshold", 0.3, "Ball must be within this range and angle threshold to enter chasetotarget mode"),
             InputPort<string>("decision_in", "", "Used to read the last decision"),
             InputPort<string>("position", "offense", "offense | defense, determines the direction to kick the ball"),
             OutputPort<string>("decision_out"),
@@ -79,6 +80,7 @@ public:
         return {
             InputPort<double>("chase_threshold", 1.0, "Perform the chasing action if the distance exceeds this threshold"),
             InputPort<double>("kick_range_threshold", 0.6, "Ball must be within this range (in meters) to enter kick mode"),
+            InputPort<double>("dribble_range_threshold", 0.3, "Ball must be within this range and angle threshold to enter chasetotarget mode"),
             InputPort<double>("adjust_angle_tolerance", 0.1, "Consider the adjustment successful if the angle is smaller than this value"),
             InputPort<double>("adjust_y_tolerance", 0.1, "Consider the y-direction adjustment successful if the offset is smaller than this value"),
             InputPort<string>("decision_in", "", "Used to read the last decision"),
@@ -176,7 +178,12 @@ private:
 class ChaseToTarget : public SyncActionNode
 {
 public:
-    ChaseToTarget(const string &name, const NodeConfig &config, Brain *_brain) : SyncActionNode(name, config), brain(_brain) {}
+    ChaseToTarget(const string &name, const NodeConfig &config, Brain *_brain) : SyncActionNode(name, config), brain(_brain) 
+    {
+        // Initialize dribbling state variables - will be set on first use with proper clock
+        _lastDribbleKickTime = rclcpp::Time(0LL, RCL_CLOCK_UNINITIALIZED);
+        _dribbleKickStartTime = rclcpp::Time(0LL, RCL_CLOCK_UNINITIALIZED);
+    }
 
     static PortsList providedPorts()
     {
@@ -188,6 +195,13 @@ public:
             InputPort<double>("target_x", 0.0, "Target x position to steer the ball towards"),
             InputPort<double>("target_y", 0.0, "Target y position to steer the ball towards"),
             InputPort<double>("turn_factor", 0.3, "How aggressively to turn towards target (0.0-1.0)"),
+            
+            // Dribbling parameters
+            InputPort<bool>("enable_dribbling", false, "Enable dribbling behavior"),
+            InputPort<double>("dribble_distance", 0.25, "Distance to ball when dribbling kicks are triggered"),
+            InputPort<double>("dribble_kick_power", 0.3, "Power of dribbling kicks (0.0-1.0)"),
+            InputPort<int>("dribble_kick_duration", 200, "Duration of dribbling kick in milliseconds"),
+            InputPort<int>("dribble_cooldown", 500, "Cooldown between dribble kicks in milliseconds"),
         };
     }
 
@@ -195,8 +209,13 @@ public:
 
 private:
     Brain *brain;
-    string _state;     // circl_back, chase;
+    string _state;     // chase, circle_back, dribble_kick, dribble_cooldown
     double _dir = 1.0; // 1.0 circle back from left, -1.0  circle back from right
+    
+    // Dribbling state variables
+    rclcpp::Time _lastDribbleKickTime;
+    rclcpp::Time _dribbleKickStartTime;
+    bool _isDribbleKicking = false;
 };
 
 // After approaching the ball, adjust to the appropriate kicking angle for offense or defense.
@@ -212,6 +231,31 @@ public:
             InputPort<double>("vx_limit", 0.1, "Limit for vx during adjustment, [-limit, limit]"),
             InputPort<double>("vy_limit", 0.1, "Limit for vy during adjustment, [-limit, limit]"),
             InputPort<double>("vtheta_limit", 0.4, "Limit for vtheta during adjustment, [-limit, limit]"),
+            InputPort<double>("max_range", 1.5, "When the ball range exceeds this value, move slightly forward"),
+            InputPort<double>("min_range", 1.0, "When the ball range is smaller than this value, move slightly backward"),
+            InputPort<string>("position", "offense", "offense | defense, determines which direction to kick the ball"),
+        };
+    }
+
+    NodeStatus tick() override;
+
+private:
+    Brain *brain;
+};
+
+// Tangential adjustment: robot moves along tangent to the circular path around ball for better forward/backward motion efficiency
+class TangentialAdjust : public SyncActionNode
+{
+public:
+    TangentialAdjust(const string &name, const NodeConfig &config, Brain *_brain) : SyncActionNode(name, config), brain(_brain) {}
+
+    static PortsList providedPorts()
+    {
+        return {
+            InputPort<double>("turn_threshold", 0.2, "If the angle to the ball exceeds this value, the robot will first turn to face the ball"),
+            InputPort<double>("vx_limit", 0.6, "Limit for vx during adjustment, [-limit, limit]"),
+            InputPort<double>("vy_limit", 0.3, "Limit for vy during adjustment, [-limit, limit]"),
+            InputPort<double>("vtheta_limit", 0.8, "Limit for vtheta during adjustment, [-limit, limit]"),
             InputPort<double>("max_range", 1.5, "When the ball range exceeds this value, move slightly forward"),
             InputPort<double>("min_range", 1.0, "When the ball range is smaller than this value, move slightly backward"),
             InputPort<string>("position", "offense", "offense | defense, determines which direction to kick the ball"),

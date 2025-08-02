@@ -4,29 +4,29 @@ brain:
     field_type: adult_size
     player_id: 1
     player_role: striker
-    player_start_pos: left
+    player_start_pos: right
     team_id: 17
   dashboard:
-    ip: "192.168.5.75"
+    ip: "192.168.4.244"
     port: 8080
   rerunLog:
     enable: true
     img_interval: 1
-    server_addr: 192.168.5.75:9876
+    server_addr: 192.168.4.110:9876
   robot:
     odom_factor: 1.2
     robot_height: 1.0
     vx_factor: 0.9
     yaw_offset: 0.1
 description: Striker, left starting position
-name: '258'
+name: '255'
 network:
   interfaces:
   - 127.0.0.1
   - 192.168.10.101
   - 192.168.10.102
 sftp:
-  host: 192.168.4.162
+  host: 192.168.4.244
   password: '123456'
   port: 22
   remotePath: /home/booster/Workspace/playground/robocup_prototype
@@ -40,33 +40,33 @@ vision:
   camera:
     type: realsense
     intrin:
-      fx: 643.103027
-      fy: 642.460327
-      cx: 643.532227
-      cy: 367.085724
+      fx: 644.410461
+      fy: 643.672363
+      cx: 639.951538
+      cy: 366.621368
       distortion_model: 1
       distortion_coeffs:
-        - -0.0561492667
-        - 0.0654542521
-        - -0.000988338375
-        - 0.000662671111
-        - -0.0213696938
+        - -0.0543924868
+        - 0.0632535294
+        - -0.000189784376
+        - 4.12508271e-05
+        - -0.0201248787
     extrin:
       -
-        - -0.00377043546
-        - -0.00587862357
-        - 0.999975622
-        - 0.0086986674
+        - 0.00144160329
+        - -0.0349565446
+        - 0.999387801
+        - 0.020637827
       -
-        - -0.999992192
-        - -0.00115927123
-        - -0.00377731351
-        - -0.0232544411
+        - -0.999970257
+        - -0.00762280822
+        - 0.00117581314
+        - -0.00235065399
       -
-        - 0.00118144846
-        - -0.999982119
-        - -0.00587420724
-        - 0.00337361917
+        - 0.0075770393
+        - -0.999359787
+        - -0.0349664986
+        - 0.034053456
       -
         - 0
         - 0
@@ -76,21 +76,21 @@ vision:
     yaw_compensation: 0
     z_compensation: 0
   detection_model:
-    model_path: ./src/vision/model/best_orin_10.3.engine
+    model_path: ./src/vision/model/best_orin.engine
     confidence_threshold: 0.2
   use_depth: true
   ball_pose_estimator:
-    use_depth: False
+    use_depth: false
     radius: 1.109
     down_sample_leaf_size: 0.01
     cluster_distance_threshold: 0.01
     fitting_distance_threshold: 0.01
   human_like_pose_estimator:
-    use_depth: False
+    use_depth: false
     down_sample_leaf_size: 0.01
     fitting_distance_threshold: 0.01
     statistic_outlier_multiplier: 0.01
   calibration:
     handeye:
-      calibration_time: 2025-07-20-15-56-53
-      reprojection_error: 4.0066343400550615
+      calibration_time: 2025-07-24-14-55-04
+      reprojection_error: 3.0568623267887318

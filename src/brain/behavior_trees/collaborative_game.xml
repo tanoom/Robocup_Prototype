@@ -34,16 +34,17 @@
 
                         <ReactiveSequence _while="gc_game_state=='READY'" name="ready">
                             <CamScanField />
-                            <MoveToPoseOnField x="-2" y="0" _while="player_role == 'striker'" vtheta_limit="2.0"  vx_limit="0.4" />
-                            <MoveToPoseOnField x="-6.5" y="0" _while="player_role == 'goal_keeper'" vtheta_limit="2.0"  vx_limit="0.4" />
+                            <MoveToPoseOnField x="-2" y="1" _while="player_id == 0" vtheta_limit="2.0"  vx_limit="0.4" />
+                            <MoveToPoseOnField x="-2.5" y="-1" _while="player_id == 1" vtheta_limit="2.0"  vx_limit="0.4" />
+                            <MoveToPoseOnField x="-6.5" y="0" _while="player_id == 2" vtheta_limit="2.0"  vx_limit="0.4" />
                             <SelfLocate mode="trust_direction" />
-                            <WaveHand _while="we_just_scored" action="start" />
+                            <!-- <WaveHand _while="we_just_scored" action="start" /> -->
                         </ReactiveSequence>
 
                         <ReactiveSequence _while="gc_game_state=='SET'" name="set">
                             <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
                             <SetVelocity />
-                            <WaveHand action="stop" />
+                            <!-- <WaveHand action="stop" /> -->
                         </ReactiveSequence>
 
                         <!-- 协作逻辑的核心部分：在PLAY状态下根据动态角色分配执行不同策略 -->
@@ -67,15 +68,16 @@
                             <ReactiveSequence _while="is_dynamic_follower" name="follower_play">
                                 <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
                                 <!-- <PrintMsg msg="[TREE] Current role: Follower (dynamic_role: {dynamic_role})" /> -->
-                                <FollowTeammate
-                                    follow_distance="2.0"
-                                    long_range_threshold="3.0"
-                                    turn_threshold="0.4"
-                                    vx_limit="0.8"
-                                    vy_limit="0.6"
-                                    vtheta_limit="0.8"
+                                <!-- <FollowTeammate
+                                    follow_distance="1.5"
+                                    long_range_threshold="100.0"
+                                    turn_threshold="0.3"
+                                    vx_limit="1.0"
+                                    vy_limit="1.0"
+                                    vtheta_limit="1.0"
                                     position_tolerance="0.3"
-                                    angle_tolerance="0.2" />
+                                    angle_tolerance="0.2" /> -->
+                                <SimpleChase  stop_dist="3.0" stop_angle="0.3" />
                                 <!-- <PrintMsg msg="跟随有球权的机器人" /> -->
                             </ReactiveSequence>
 
