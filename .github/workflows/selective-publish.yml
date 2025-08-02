@@ -1,0 +1,196 @@
+name: Selective Publish to Public Repo
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_repository:
+        description: 'Target public repository (e.g., username/public-repo)'
+        required: true
+        type: string
+      
+      commit_range:
+        description: 'Commit range to publish (e.g., HEAD~5..HEAD, abc123..def456, or single commit hash)'
+        required: true
+        type: string
+        default: 'HEAD~1..HEAD'
+      
+      target_branch:
+        description: 'Target branch in public repo'
+        required: true
+        type: string
+        default: 'main'
+      
+      commit_message:
+        description: 'Custom commit message for public repo (optional)'
+        required: false
+        type: string
+        default: ''
+      
+      filter_sensitive_files:
+        description: 'Remove sensitive files before publishing'
+        required: true
+        type: boolean
+        default: true
+      
+      dry_run:
+        description: 'Dry run - show what would be published without actually pushing'
+        required: true
+        type: boolean
+        default: false
+
+jobs:
+  selective-publish:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Validate inputs
+        run: |
+          echo "Target repository: ${{ github.event.inputs.target_repository }}"
+          echo "Commit range: ${{ github.event.inputs.commit_range }}"
+          echo "Target branch: ${{ github.event.inputs.target_branch }}"
+          echo "Filter sensitive files: ${{ github.event.inputs.filter_sensitive_files }}"
+          echo "Dry run: ${{ github.event.inputs.dry_run }}"
+          
+          # Validate commit range
+          if ! git rev-list ${{ github.event.inputs.commit_range }} >/dev/null 2>&1; then
+            echo "❌ Invalid commit range: ${{ github.event.inputs.commit_range }}"
+            exit 1
+          fi
+          
+          echo "✅ Commit range is valid"
+          
+          # Show commits to be published
+          echo "📝 Commits to be published:"
+          git log --oneline ${{ github.event.inputs.commit_range }}
+      
+      - name: Create temporary branch for publishing
+        run: |
+          # Create a new orphan branch for clean publishing
+          TEMP_BRANCH="publish-$(date +%s)"
+          echo "TEMP_BRANCH=$TEMP_BRANCH" >> $GITHUB_ENV
+          
+          # Create new orphan branch
+          git checkout --orphan $TEMP_BRANCH
+          git rm -rf .
+          
+          # Apply selected commits
+          echo "📦 Applying selected commits..."
+          
+          # Get the commits in the range
+          COMMITS=$(git rev-list --reverse ${{ github.event.inputs.commit_range }})
+          
+          for commit in $COMMITS; do
+            echo "🔄 Applying commit: $commit"
+            git checkout $commit -- .
+            
+            # Filter sensitive files if requested
+            if [ "${{ github.event.inputs.filter_sensitive_files }}" = "true" ]; then
+              echo "🔒 Filtering sensitive files..."
+              
+              # Remove files that shouldn't be public
+              rm -f brain_local.yaml 2>/dev/null || true
+              rm -f vision_local.yaml 2>/dev/null || true
+              rm -rf .vscode 2>/dev/null || true
+              rm -f *.log 2>/dev/null || true
+              rm -rf build 2>/dev/null || true
+              rm -rf log 2>/dev/null || true
+              rm -rf install 2>/dev/null || true
+              rm -f .DS_Store 2>/dev/null || true
+              
+              # Remove any files with "private", "secret", or "local" in the name
+              find . -name "*private*" -type f -delete 2>/dev/null || true
+              find . -name "*secret*" -type f -delete 2>/dev/null || true
+              find . -name "*local*" -type f -delete 2>/dev/null || true
+              
+              # Remove any .env files
+              find . -name ".env*" -type f -delete 2>/dev/null || true
+            fi
+            
+            # Add all changes
+            git add -A
+            
+            # Use custom commit message or original
+            if [ -n "${{ github.event.inputs.commit_message }}" ]; then
+              COMMIT_MSG="${{ github.event.inputs.commit_message }}"
+            else
+              COMMIT_MSG=$(git log --format=%B -n 1 $commit)
+            fi
+            
+            # Only commit if there are changes
+            if ! git diff --cached --quiet; then
+              git commit -m "$COMMIT_MSG"
+            fi
+          done
+      
+      - name: Show changes summary
+        run: |
+          echo "📊 Publishing Summary:"
+          echo "===================="
+          
+          # Count files
+          FILE_COUNT=$(find . -type f | wc -l)
+          echo "📁 Total files: $FILE_COUNT"
+          
+          # Show structure
+          echo "📂 Directory structure:"
+          tree -a -L 2 2>/dev/null || find . -type d | head -20
+          
+          # Show commits
+          echo "📝 Commits in publish branch:"
+          git log --oneline --graph
+          
+          # Show file sizes
+          echo "💾 Repository size:"
+          du -sh .
+      
+      - name: Setup SSH for publishing
+        if: github.event.inputs.dry_run != 'true'
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PUBLISH_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          
+          # Configure git
+          git config user.name "RoboCup Publisher Bot"
+          git config user.email "noreply@robocup-demo.org"
+      
+      - name: Push to public repository
+        if: github.event.inputs.dry_run != 'true'
+        run: |
+          # Add public repository as remote
+          git remote add public git@github.com:${{ github.event.inputs.target_repository }}.git
+          
+          echo "🚀 Publishing to public repository..."
+          
+          # Push to target branch
+          git push public $TEMP_BRANCH:${{ github.event.inputs.target_branch }} --force
+          
+          echo "✅ Successfully published to ${{ github.event.inputs.target_repository }}"
+      
+      - name: Dry run summary
+        if: github.event.inputs.dry_run == 'true'
+        run: |
+          echo "🔍 DRY RUN COMPLETE"
+          echo "=================="
+          echo "This was a dry run. No changes were pushed to the public repository."
+          echo ""
+          echo "To actually publish these changes:"
+          echo "1. Review the changes above"
+          echo "2. Re-run this workflow with 'dry_run' set to false"
+          echo ""
+          echo "Target: ${{ github.event.inputs.target_repository }}"
+          echo "Branch: ${{ github.event.inputs.target_branch }}"
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          # Switch back to original branch and cleanup
+          git checkout ${{ github.ref_name }} 2>/dev/null || true
+          git branch -D $TEMP_BRANCH 2>/dev/null || true
