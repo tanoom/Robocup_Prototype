@@ -68,7 +68,7 @@
                             <ReactiveSequence _while="is_dynamic_follower" name="follower_play">
                                 <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
                                 <!-- <PrintMsg msg="[TREE] Current role: Follower (dynamic_role: {dynamic_role})" /> -->
-                                <!-- <FollowTeammate
+                                <FollowTeammate
                                     follow_distance="1.5"
                                     long_range_threshold="100.0"
                                     turn_threshold="0.3"
@@ -76,8 +76,8 @@
                                     vy_limit="1.0"
                                     vtheta_limit="1.0"
                                     position_tolerance="0.3"
-                                    angle_tolerance="0.2" /> -->
-                                <SimpleChase  stop_dist="3.0" stop_angle="0.3" />
+                                    angle_tolerance="0.2" />
+                                <!-- <SimpleChase  stop_dist="3.0" stop_angle="0.3" /> -->
                                 <!-- <PrintMsg msg="跟随有球权的机器人" /> -->
                             </ReactiveSequence>
 
