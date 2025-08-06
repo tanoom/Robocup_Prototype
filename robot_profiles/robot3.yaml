@@ -4,13 +4,13 @@ brain:
     field_type: adult_size
     player_id: 2
     player_role: goal_keeper
-    player_start_pos: right
+    player_start_pos: left
     team_id: 17
   dashboard:
     ip: "192.168.4.115"
     port: 8080
   rerunLog:
-    enable: true
+    enable: false
     img_interval: 1
     server_addr: 192.168.4.48:9876
   robot:
@@ -26,7 +26,7 @@ network:
   - 192.168.10.101
   - 192.168.10.102
 sftp:
-  host: 192.168.4.115
+  host: 192.168.50.123
   password: '123456'
   port: 22
   remotePath: /home/booster/Workspace/playground/robocup_prototype
