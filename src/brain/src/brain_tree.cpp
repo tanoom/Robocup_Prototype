@@ -760,7 +760,7 @@ NodeStatus StrikerDecide::tick()
         newDecision = "chasetotarget";
         color = 0xFFFF00FF; // Yellow for dribble
     }
-    else if (angleIsGood && ballInKickRange)
+    else if (angleIsGood)
     {
         newDecision = "kick";
         color = 0xFF0000FF;
