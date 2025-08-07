@@ -257,6 +257,9 @@ public:
             InputPort<double>("near_threshold", 0.8, "Use near speed when distance to target is smaller than this value"),
             InputPort<double>("no_turn_threshold", 0.02, "Do not turn when angle difference is smaller than this value"),
             InputPort<double>("turn_first_threshold", 0.8, "Turn first without moving when angle difference exceeds this value"),
+            InputPort<string>("position", "offense", "offense | defense, determines which direction to kick the ball"),
+            InputPort<double>("max_range", 1.5, "When the ball range exceeds this value, move slightly forward"),
+            InputPort<double>("min_range", 1.0, "When the ball range is smaller than this value, move slightly backward"),
         };
     }
 
@@ -304,6 +307,7 @@ public:
             InputPort<double>("vx_limit", 1.2, "vx limit"),
             InputPort<double>("vy_limit", 0.4, "vy limit"),
             InputPort<double>("speed_limit", 0.8, "max speed"),
+            InputPort<int>("msec_stand", 500, "The number of milliseconds after issuing a stop command"),
         };
     }
 

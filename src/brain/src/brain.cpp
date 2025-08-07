@@ -907,7 +907,18 @@ bool Brain::isDefensing() {
 
 double Brain::msecsSince(rclcpp::Time time)
 {
-    return (this->get_clock()->now() - time).nanoseconds() / 1e6;
+    auto current_time = this->get_clock()->now();
+    
+    // Handle different clock types safely by comparing clock types
+    if (current_time.get_clock_type() != time.get_clock_type()) {
+        // If clock types don't match, we can't safely subtract them
+        // For vision timestamps (ROS time) vs node clock (steady time), 
+        // convert both to nanoseconds since epoch and calculate difference
+        return (current_time.nanoseconds() - time.nanoseconds()) / 1e6;
+    }
+    
+    // Same clock type, safe to subtract normally
+    return (current_time - time).nanoseconds() / 1e6;
 }
 
 bool Brain::executePenaltyPointLocalize()

@@ -48,6 +48,7 @@ void BrainTree::init()
     REGISTER_BUILDER(GoToTeammateBall)
     REGISTER_BUILDER(FollowTeammate)
     REGISTER_BUILDER(TangentialAdjust)
+    REGISTER_BUILDER(CalcKickDir)
 
     // GoalKeeper Nodes
     REGISTER_BUILDER(GoalKeeperPosition)

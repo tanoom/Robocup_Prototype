@@ -32,10 +32,7 @@
                                  dribble_kick_power="1.0"
                                  dribble_kick_duration="250"
                                  dribble_cooldown="1000" />
-                  <Sequence  _while="decision == 'kick'">
-                     <SetVelocity />
-                     <Kick vx_limit="1.2" vy_limit="0.4" min_msec_kick="300"/>
-                  </Sequence>
+                  <Kick speed_limit="1.0" min_msec_kick="300"/>
             </Sequence>
          </ReactiveSequence>
       </ReactiveSequence>
