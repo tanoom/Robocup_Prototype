@@ -30,6 +30,11 @@ inline double cap(double x, double upper_limit, double lower_limit)
     return max(min(x, upper_limit), lower_limit);
 }
 
+// sigmoid function
+inline double sigmoid(double x, double shift = 0., double scale = 1.) {
+    return 1 / (1 + std::exp(scale * (x - shift)));
+}
+
 // Calculate the L2 norm (the square root of the sum of the squares of two numbers).
 inline double norm(double x, double y)
 {

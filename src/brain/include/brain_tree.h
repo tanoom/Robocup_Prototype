@@ -159,10 +159,11 @@ public:
     static PortsList providedPorts()
     {
         return {
-            InputPort<double>("vx_limit", 0.4, "Maximum x velocity for chasing the ball"),
+            InputPort<double>("vx_limit", 0.6, "Maximum x velocity for chasing the ball"),
             InputPort<double>("vy_limit", 0.4, "Maximum y velocity for chasing the ball"),
-            InputPort<double>("vtheta_limit", 0.1, "Maximum angular velocity for real-time direction adjustment while chasing the ball"),
-            InputPort<double>("dist", 1.0, "The target distance behind the ball for chasing it"),
+            InputPort<double>("vtheta_limit", 1.0, "Maximum angular velocity for real-time direction adjustment while chasing the ball"),
+            InputPort<double>("dist", 0.1, "The target distance behind the ball for chasing it"),
+            InputPort<double>("safe_dist", 4.0, "circle back 时, 保持的安全距离"),
         };
     }
 
