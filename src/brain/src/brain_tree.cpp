@@ -431,9 +431,8 @@ NodeStatus ChaseToTarget::tick()
     double ballYaw = brain->data->ball.yawToRobot;
     auto currentTime = brain->get_clock()->now();
 
-    // Calculate desired direction from ball to target
-    double ballToTargetAngle = atan2(targetY - brain->data->ball.posToField.y, 
-                                   targetX - brain->data->ball.posToField.x);
+    // Use the kick direction calculated by CalcKickDir (cross, shoot, or block)
+    double ballToTargetAngle = brain->data->kickDir;
     
     // Calculate current robot-ball angle in field coordinates
     double currentRobotBallAngle = brain->data->robotBallAngleToField;
@@ -658,53 +657,63 @@ NodeStatus Adjust::tick()
         return NodeStatus::SUCCESS;
     }
 
-    double turnThreshold, vxLimit, vyLimit, vthetaLimit, maxRange, minRange;
+    double turnThreshold, vxLimit, vyLimit, vthetaLimit, range, st_far, st_near, vtheta_factor, NEAR_THRESHOLD;
+    getInput("near_threshold", NEAR_THRESHOLD);
+    getInput("tangential_speed_far", st_far);
+    getInput("tangential_speed_near", st_near);
+    getInput("vtheta_factor", vtheta_factor);
     getInput("turn_threshold", turnThreshold);
     getInput("vx_limit", vxLimit);
     getInput("vy_limit", vyLimit);
     getInput("vtheta_limit", vthetaLimit);
-    getInput("max_range", maxRange);
-    getInput("min_range", minRange);
-    string position;
-    getInput("position", position);
+    getInput("range", range);
+
+    double NO_TURN_THRESHOLD, TURN_FIRST_THRESHOLD;
+    getInput("no_turn_threshold", NO_TURN_THRESHOLD);
+    getInput("turn_first_threshold", TURN_FIRST_THRESHOLD);
+
 
     double vx = 0, vy = 0, vtheta = 0;
     double kickDir = brain->data->kickDir;
-    double dir_rb_f = brain->data->robotBallAngleToField;
+    double dir_rb_f = brain->data->robotBallAngleToField; 
     double deltaDir = toPInPI(kickDir - dir_rb_f);
-    double dir = deltaDir > 0 ? -1.0 : 1.0;
     double ballRange = brain->data->ball.range;
     double ballYaw = brain->data->ball.yawToRobot;
+    // double st = cap(fabs(deltaDir), st_far, st_near);
 
-    // Calculate speed scaling factor based on angle difference
-    double angleDiff = fabs(deltaDir);
-    double speedScale = 0.4;
+    double st = st_far; 
+    double R = ballRange; 
+    double r = range;
+    double sr = cap(R - r, 0.5, 0); 
 
+    if (fabs(deltaDir) * R < NEAR_THRESHOLD) {
+        st = st_near;
+        // sr = 0.;
+        // vxLimit = 0.1;
+    }
+    double theta_robot_f = brain->data->robotPoseToField.theta; 
+    double thetat_r = dir_rb_f + M_PI / 2 * (deltaDir > 0 ? -1.0 : 1.0) - theta_robot_f; 
+    double thetar_r = dir_rb_f - theta_robot_f; 
 
-    std::cout << "[DEBUG] speedScale: " << speedScale << ", angleDiff: " << angleDiff << std::endl;
+    vx = st * cos(thetat_r) + sr * cos(thetar_r); 
+    vy = st * sin(thetat_r) + sr * sin(thetar_r); 
+    // vtheta = toPInPI(ballYaw + st / R * (deltaDir > 0 ? 1.0 : -1.0)); 
+    vtheta = ballYaw;
+    vtheta *= vtheta_factor; 
 
-    double s = speedScale;  // Apply speed scaling to base movement speed
-    double r = 0.8;
+    if (fabs(ballYaw) < NO_TURN_THRESHOLD) vtheta = 0.; 
+    if (
+        fabs(ballYaw) > TURN_FIRST_THRESHOLD 
+        && fabs(deltaDir) < M_PI / 4
+    ) { 
+        vx = 0;
+        vy = 0;
+    }
 
-    // Base circling movement
-    vx = -s * dir * sin(ballYaw);
-    vy = s * dir * cos(ballYaw);
-
-    std::cout << "[DEBUG] vx: " << vx << ", vy: " << vy << std::endl;
-
-    // Maintain distance to maxRange
-    if (ballRange > maxRange)
-        vx += 0.1;
-    if (ballRange < maxRange)
-        vx -= 0.1;
-
-    // Continuous turning control
-    vtheta = (ballYaw - dir * s) / r;
-
-    vx = cap(vx, vxLimit, -vxLimit);
+    vx = cap(vx, vxLimit, -0.);
     vy = cap(vy, vyLimit, -vyLimit);
     vtheta = cap(vtheta, vthetaLimit, -vthetaLimit);
-
+    
     brain->client->setVelocity(vx, vy, vtheta);
     return NodeStatus::SUCCESS;
 }
@@ -1031,53 +1040,50 @@ NodeStatus GoalieDecide::tick()
 
 NodeStatus Kick::onStart()
 {
+    _minRange = brain->data->ball.range;
+    _speed = 0.5;
     _startTime = brain->get_clock()->now();
 
-    double vxLimit, vyLimit;
-    getInput("vx_limit", vxLimit);
-    getInput("vy_limit", vyLimit);
-    int minMSecKick;
-    getInput("min_msec_kick", minMSecKick);
-    double vxFactor = brain->config->vxFactor;
-    double yawOffset = brain->config->yawOffset;
-
-    double adjustedYaw = brain->data->ball.yawToRobot - yawOffset;
-    double tx = cos(adjustedYaw) * brain->data->ball.range;
-    double ty = sin(adjustedYaw) * brain->data->ball.range;
-
-    double vx, vy;
-
-    if (fabs(ty) < 0.01 && fabs(adjustedYaw) < 0.01)
-    {
-        vx = vxLimit;
-        vy = 0.0;
-    }
-    else
-    {
-        vy = ty > 0 ? vyLimit : -vyLimit;
-        vx = vy / ty * tx * vxFactor;
-        if (fabs(vx) > vxLimit)
-        {
-            vy *= vxLimit / vx;
-            vx = vxLimit;
-        }
-    }
-
-    double speed = norm(vx, vy);
-
-    _msecKick = speed > 1e-5 ? minMSecKick + static_cast<int>(brain->data->ball.range / speed * 1000) : minMSecKick;
-
-    brain->client->setVelocity(vx, vy, 0, false, false, false);
+    double angle = brain->data->ball.yawToRobot;
+    brain->client->crabWalk(angle, _speed);
     return NodeStatus::RUNNING;
 }
 
 NodeStatus Kick::onRunning()
 {
-    if (brain->msecsSince(_startTime) < _msecKick)
-        return NodeStatus::RUNNING;
+    bool enableAbort = true;
+    auto ballRange = brain->data->ball.range;
+    const double MOVE_RANGE_THRESHOLD = 0.3;
+    const double BALL_LOST_THRESHOLD = 1000;  
+    if (
+        enableAbort 
+        && (
+            (brain->data->ballDetected && ballRange - _minRange > MOVE_RANGE_THRESHOLD) 
+            || brain->msecsSince(brain->data->ball.timePoint) > BALL_LOST_THRESHOLD 
+        )
+    ) {
+        return NodeStatus::SUCCESS;
+    }
 
-    brain->client->setVelocity(0, 0, 0);
-    return NodeStatus::SUCCESS;
+    if (ballRange < _minRange) _minRange = ballRange;    
+
+    double msecs = getInput<double>("min_msec_kick").value();
+    double speed = getInput<double>("speed_limit").value();
+    msecs = msecs + brain->data->ball.range / speed * 1000;
+    if (brain->msecsSince(_startTime) > msecs) { 
+        brain->client->setVelocity(0, 0, 0);
+        return NodeStatus::SUCCESS;
+    }
+
+    if (brain->data->ballDetected) { 
+        double angle = brain->data->ball.yawToRobot;
+        double speed = getInput<double>("speed_limit").value();
+        _speed += 0.1; 
+        speed = min(speed, _speed);
+        brain->client->crabWalk(angle, speed);
+    }
+
+    return NodeStatus::RUNNING;
 }
 
 void Kick::onHalted()

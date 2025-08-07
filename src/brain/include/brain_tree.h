@@ -163,7 +163,7 @@ public:
             InputPort<double>("vy_limit", 0.4, "Maximum y velocity for chasing the ball"),
             InputPort<double>("vtheta_limit", 1.0, "Maximum angular velocity for real-time direction adjustment while chasing the ball"),
             InputPort<double>("dist", 0.1, "The target distance behind the ball for chasing it"),
-            InputPort<double>("safe_dist", 4.0, "circle back 时, 保持的安全距离"),
+            InputPort<double>("safe_dist", 4.0, "Safe distance maintained during circle back"),
         };
     }
 
@@ -183,7 +183,7 @@ public:
     static PortsList providedPorts()
     {
         return {
-            InputPort<double>("cross_threshold", 0.2, "可进门的角度范围小于这个值时, 则传中")
+            InputPort<double>("cross_threshold", 0.2, "When the goal angle range is smaller than this value, perform a cross")
         };
     }
 
@@ -246,13 +246,17 @@ public:
     static PortsList providedPorts()
     {
         return {
-            InputPort<double>("turn_threshold", 0.2, "If the angle to the ball exceeds this value, the robot will first turn to face the ball"),
-            InputPort<double>("vx_limit", 0.1, "Limit for vx during adjustment, [-limit, limit]"),
-            InputPort<double>("vy_limit", 0.1, "Limit for vy during adjustment, [-limit, limit]"),
-            InputPort<double>("vtheta_limit", 0.4, "Limit for vtheta during adjustment, [-limit, limit]"),
-            InputPort<double>("max_range", 1.5, "When the ball range exceeds this value, move slightly forward"),
-            InputPort<double>("min_range", 1.0, "When the ball range is smaller than this value, move slightly backward"),
-            InputPort<string>("position", "offense", "offense | defense, determines which direction to kick the ball"),
+            InputPort<double>("turn_threshold", 3.25, "When ball angle exceeds this value, robot first turns to face ball, linear movement paused"),
+            InputPort<double>("vx_limit", 0.05, "vx limit during adjustment [-limit, limit]"),
+            InputPort<double>("vy_limit", 0.05, "vy limit during adjustment [-limit, limit]"),
+            InputPort<double>("vtheta_limit", 0.1, "vtheta limit during adjustment [-limit, limit]"),
+            InputPort<double>("range", 2.25, "Maintain this ball range value"),
+            InputPort<double>("vtheta_factor", 3.0, "vtheta multiplier when adjusting angle, larger value means faster turning"),
+            InputPort<double>("tangential_speed_far", 0.2, "Tangential speed when adjusting angle at far distance"),
+            InputPort<double>("tangential_speed_near", 0.15, "Tangential speed when adjusting angle at near distance"),
+            InputPort<double>("near_threshold", 0.8, "Use near speed when distance to target is smaller than this value"),
+            InputPort<double>("no_turn_threshold", 0.02, "Do not turn when angle difference is smaller than this value"),
+            InputPort<double>("turn_first_threshold", 0.8, "Turn first without moving when angle difference exceeds this value"),
         };
     }
 
@@ -296,9 +300,10 @@ public:
     {
         return {
             InputPort<int>("min_msec_kick", 500, "The minimum duration (in milliseconds) for executing a kick action"),
-            InputPort<int>("msec_stand", 500, "The number of milliseconds after issuing a stop command"),
+            InputPort<int>("msecs_stablize", 500, "The number of milliseconds of stablization"),
             InputPort<double>("vx_limit", 1.2, "vx limit"),
             InputPort<double>("vy_limit", 0.4, "vy limit"),
+            InputPort<double>("speed_limit", 0.8, "max speed"),
         };
     }
 
@@ -312,6 +317,8 @@ public:
 private:
     Brain *brain;
     rclcpp::Time _startTime;
+    double _speed; 
+    double _minRange; 
     int _msecKick = 1000;
 };
 

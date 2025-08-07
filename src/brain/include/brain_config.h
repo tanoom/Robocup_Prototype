@@ -66,7 +66,7 @@ public:
     double headPitchLimitUp = 0.0;
 
     // Speed limit
-    double vxLimit = 1.2;
+    double vxLimit = 0.8;
     double vyLimit = 0.4;
     double vthetaLimit = 1.5;
 

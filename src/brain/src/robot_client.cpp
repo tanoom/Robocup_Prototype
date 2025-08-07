@@ -45,6 +45,25 @@ int RobotClient::enterDamping()
     return 0;
 }
 
+int RobotClient::crabWalk(double angle, double speed) {
+    double vxFactor = brain->config->vxFactor;   // 用于调整 vx, vx *= vxFactor, 以补偿 x, y 方向的速度参数与实际速度比例的偏差, 使运动方向准确
+    double yawOffset = brain->config->yawOffset; // 用于补偿定位角度的偏差
+    double vxLimit = brain->config->vxLimit;
+    double vyLimit = brain->config->vyLimit;
+
+    // 计算速度指令
+    double cmdAngle = angle + yawOffset;
+    double vx = cos(cmdAngle) * speed * vxFactor;
+    double vy = sin(cmdAngle) * speed;
+
+    if (fabs(vy) > vyLimit) {
+        vx *= vyLimit / fabs(vy);
+        vy = vyLimit * fabs(vy) / vy;
+    }
+
+    return setVelocity(vx, vy, 0);
+}
+
 int RobotClient::setVelocity(double x, double y, double theta, bool applyMinX, bool applyMinY, bool applyMinTheta)
 {
     brain->log->setTimeNow();

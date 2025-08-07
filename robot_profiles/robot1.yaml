@@ -19,14 +19,14 @@ brain:
     vx_factor: 0.9
     yaw_offset: 0.1
 description: Striker, left starting position
-name: '251'
+name: '180'
 network:
   interfaces:
   - 127.0.0.1
   - 192.168.10.101
   - 192.168.10.102
 sftp:
-  host: 192.168.50.158
+  host: 192.168.50.37
   password: '123456'
   port: 22
   remotePath: /home/booster/Workspace/robocup_prototype

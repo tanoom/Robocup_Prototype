@@ -43,6 +43,8 @@ public:
      */
     int setVelocity(double x, double y, double theta, bool applyMinX = true, bool applyMinY = true, bool applyMinTheta = true);
 
+    int crabWalk(double angle, double speed);
+
     /**
      * @brief Walk towards a certain Pose in the pitch coordinate system in speed mode. Note that the final orientation should also be reached.
      *
