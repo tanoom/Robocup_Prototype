@@ -234,6 +234,13 @@ public:
             InputPort<double>("max_range", 1.5, "When the ball range exceeds this value, move slightly forward"),
             InputPort<double>("min_range", 1.0, "When the ball range is smaller than this value, move slightly backward"),
             InputPort<string>("position", "offense", "offense | defense, determines which direction to kick the ball"),
+            InputPort<double>("near_threshold", 0.3, "Threshold for near distance calculations"),
+            InputPort<double>("tangential_speed_far", 0.4, "Tangential speed when far from target"),
+            InputPort<double>("tangential_speed_near", 0.2, "Tangential speed when near target"),
+            InputPort<double>("vtheta_factor", 1.0, "Factor for angular velocity adjustment"),
+            InputPort<double>("range", 1.0, "Target range to maintain"),
+            InputPort<double>("no_turn_threshold", 0.1, "Threshold below which no turning is applied"),
+            InputPort<double>("turn_first_threshold", 0.5, "Threshold above which robot turns first before moving"),
         };
     }
 

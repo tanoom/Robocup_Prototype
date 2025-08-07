@@ -580,53 +580,63 @@ NodeStatus Adjust::tick()
         return NodeStatus::SUCCESS;
     }
 
-    double turnThreshold, vxLimit, vyLimit, vthetaLimit, maxRange, minRange;
+    double turnThreshold, vxLimit, vyLimit, vthetaLimit, range, st_far, st_near, vtheta_factor, NEAR_THRESHOLD;
+    getInput("near_threshold", NEAR_THRESHOLD);
+    getInput("tangential_speed_far", st_far);
+    getInput("tangential_speed_near", st_near);
+    getInput("vtheta_factor", vtheta_factor);
     getInput("turn_threshold", turnThreshold);
     getInput("vx_limit", vxLimit);
     getInput("vy_limit", vyLimit);
     getInput("vtheta_limit", vthetaLimit);
-    getInput("max_range", maxRange);
-    getInput("min_range", minRange);
+    getInput("range", range);
+    double NO_TURN_THRESHOLD, TURN_FIRST_THRESHOLD;
+    getInput("no_turn_threshold", NO_TURN_THRESHOLD);
+    getInput("turn_first_threshold", TURN_FIRST_THRESHOLD);
     string position;
     getInput("position", position);
 
     double vx = 0, vy = 0, vtheta = 0;
     double kickDir = (position == "defense") ? atan2(brain->data->ball.posToField.y, brain->data->ball.posToField.x + brain->config->fieldDimensions.length / 2) : atan2(-brain->data->ball.posToField.y, brain->config->fieldDimensions.length / 2 - brain->data->ball.posToField.x);
-    double dir_rb_f = brain->data->robotBallAngleToField;
+    double dir_rb_f = brain->data->robotBallAngleToField; 
     double deltaDir = toPInPI(kickDir - dir_rb_f);
-    double dir = deltaDir > 0 ? -1.0 : 1.0;
     double ballRange = brain->data->ball.range;
     double ballYaw = brain->data->ball.yawToRobot;
+    // double st = cap(fabs(deltaDir), st_far, st_near);
+    double st = st_far; 
+    double R = ballRange; 
+    double r = range;
+    double sr = cap(R - r, 0.5, 0); 
 
-    // Calculate speed scaling factor based on angle difference
-    double angleDiff = fabs(deltaDir);
-    double speedScale = 0.4;
+    if (fabs(deltaDir) * R < NEAR_THRESHOLD) {
+        st = st_near;
+        // sr = 0.;
+        // vxLimit = 0.1;
+    }
 
+    double theta_robot_f = brain->data->robotPoseToField.theta; 
+    double thetat_r = dir_rb_f + M_PI / 2 * (deltaDir > 0 ? -1.0 : 1.0) - theta_robot_f; 
+    double thetar_r = dir_rb_f - theta_robot_f; 
 
-    std::cout << "[DEBUG] speedScale: " << speedScale << ", angleDiff: " << angleDiff << std::endl;
+    vx = st * cos(thetat_r) + sr * cos(thetar_r); 
+    vy = st * sin(thetat_r) + sr * sin(thetar_r); 
+    // vtheta = toPInPI(ballYaw + st / R * (deltaDir > 0 ? 1.0 : -1.0)); 
+    vtheta = ballYaw;
+    vtheta *= vtheta_factor; 
 
-    double s = speedScale;  // Apply speed scaling to base movement speed
-    double r = 0.8;
+    if (fabs(ballYaw) < NO_TURN_THRESHOLD) vtheta = 0.; 
+    if (
+        fabs(ballYaw) > TURN_FIRST_THRESHOLD 
+        && fabs(deltaDir) < M_PI / 4
+    ) { 
+        vx = 0;
+        vy = 0;
+    }
 
-    // Base circling movement
-    vx = -s * dir * sin(ballYaw);
-    vy = s * dir * cos(ballYaw);
-
-    std::cout << "[DEBUG] vx: " << vx << ", vy: " << vy << std::endl;
-
-    // Maintain distance to maxRange
-    if (ballRange > maxRange)
-        vx += 0.1;
-    if (ballRange < maxRange)
-        vx -= 0.1;
-
-    // Continuous turning control
-    vtheta = (ballYaw - dir * s) / r;
-
-    vx = cap(vx, vxLimit, -vxLimit);
+    vx = cap(vx, vxLimit, -0.);
     vy = cap(vy, vyLimit, -vyLimit);
     vtheta = cap(vtheta, vthetaLimit, -vthetaLimit);
-
+    
     brain->client->setVelocity(vx, vy, vtheta);
     return NodeStatus::SUCCESS;
 }

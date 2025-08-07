@@ -10,7 +10,7 @@
             <SubTree ID="FindBall" _while="decision=='find'" _autoremap="true" />
             <Chase _while="decision == 'chase'" vx_limit="1.0" vy_limit="0.4" vtheta_limit="0.3" dist="0.9"/>
             <ChaseToTarget _while="decision == 'chasetotarget'" vx_limit="0.8" vy_limit="0.3" vtheta_limit="0.3" dist="0.7" target_x="6.5" target_y="0.0" turn_factor="0.5" />
-            <Adjust _while="decision == 'adjust'"  max_range="0.9" min_range="0.4" turn_threshold="0.15" vy_limit="0.3" vtheta_limit="0.3" vx_limit="1.0" />
+            <Adjust _while="decision == 'adjust'" turn_threshold="0.5" range="0.5" vx_limit="0.5" vy_limit="0.6" vtheta_limit="1.5" vtheta_factor="4.5" tangential_speed_far="0.9" tangential_speed_near="0.4" />
             <SetVelocity _while="decision == 'kick'" />
          </ReactiveSequence>
          <ReactiveSequence _while="!gc_is_sub_state_kickoff_side" name="move to defensive position">
@@ -20,7 +20,7 @@
             <SubTree ID="FindBall" _while="decision=='find'" _autoremap="true" />
             <Chase _while="decision == 'chase'" vx_limit="1.1" vy_limit="0.5" vtheta_limit="0.3" dist="1.5"/>
             <ChaseToTarget _while="decision == 'chasetotarget'" vx_limit="0.9" vy_limit="0.4" vtheta_limit="0.3" dist="1.0" target_x="6.5" target_y="0.0" turn_factor="0.4" />
-            <Adjust _while="decision == 'adjust'"  max_range="2.0" min_range="1.5" turn_threshold="0.3" vy_limit="0.3" vtheta_limit="1.0" vx_limit="0.3" position="defense"/>
+            <Adjust _while="decision == 'adjust'" position="defense" turn_threshold="0.5" range="0.5" vx_limit="0.5" vy_limit="0.6" vtheta_limit="1.5" vtheta_factor="4.5" tangential_speed_far="0.9" tangential_speed_near="0.4" />
             <SetVelocity _while="decision == 'kick'" />
             <!-- <CamScanField /> 
             <MoveToPoseOnField x="-3.0" y = "0" /> -->
