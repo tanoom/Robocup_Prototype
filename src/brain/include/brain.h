@@ -86,6 +86,8 @@ public:
     // 执行罚球点定位
     bool executePenaltyPointLocalize();
 
+    bool isDefensing();
+
     // Public getters for timing statistics
     double getTotalLoopTime() const { return totalLoopTime; }
     double getMaxLoopTime() const { return maxLoopTime; }

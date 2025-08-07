@@ -898,6 +898,13 @@ void Brain::calibrateOdom(double x, double y, double theta)
     }
 }
 
+bool Brain::isDefensing() {
+    bool isFreeKick = tree->getEntry<string>("gc_game_sub_state_type") == "FREE_KICK";
+    bool isKickoffSide = tree->getEntry<bool>("gc_is_sub_state_kickoff_side");
+    
+    return isFreeKick && (!isKickoffSide);
+}
+
 double Brain::msecsSince(rclcpp::Time time)
 {
     return (this->get_clock()->now() - time).nanoseconds() / 1e6;

@@ -319,6 +319,60 @@ NodeStatus Chase::tick()
     return NodeStatus::SUCCESS;
 }
 
+NodeStatus CalcKickDir::tick()
+{
+    double crossThreshold;
+    getInput("cross_threshold", crossThreshold);
+
+    string lastKickType = brain->data->kickType;
+    if (lastKickType == "cross") crossThreshold += 0.1;
+
+    auto gpAngles = brain->getGoalPostAngles(0.0);
+    auto thetal = gpAngles[0]; auto thetar = gpAngles[1];
+    auto bPos = brain->data->ball.posToField;
+    auto fd = brain->config->fieldDimensions;
+    auto color = 0xFFFFFFFF; // for log
+
+    if (thetal - thetar < crossThreshold && brain->data->ball.posToField.x > fd.circleRadius) {
+        brain->data->kickType = "cross";
+        color = 0xFF00FFFF;
+        brain->data->kickDir = atan2(
+            - bPos.y,
+            fd.length/2 - fd.penaltyDist/2 - bPos.x
+        );
+    }
+    else if (brain->isDefensing()) {
+        brain->data->kickType = "block";
+        color = 0xFFFF00FF;
+        brain->data->kickDir = atan2(
+            bPos.y,
+            bPos.x + fd.length/2
+        );
+
+    } else { 
+        brain->data->kickType = "shoot";
+        color = 0x00FF00FF;
+        brain->data->kickDir = atan2(
+            - bPos.y,
+            fd.length/2 - bPos.x
+        );
+        if (brain->data->ball.posToField.x > brain->config->fieldDimensions.length / 2) brain->data->kickDir = 0; 
+    }
+
+    brain->log->setTimeNow();
+    brain->log->log(
+        "field/kick_dir",
+        rerun::Arrows2D::from_vectors({{10 * cos(brain->data->kickDir), -10 * sin(brain->data->kickDir)}})
+            .with_origins({{brain->data->ball.posToField.x, -brain->data->ball.posToField.y}})
+            .with_colors({color})
+            .with_radii(0.01)
+            .with_draw_order(31)
+    );
+
+    return NodeStatus::SUCCESS;
+}
+
+
 NodeStatus ChaseToTarget::tick()
 {
     if (!brain->tree->getEntry<bool>("ball_location_known"))
@@ -591,7 +645,7 @@ NodeStatus Adjust::tick()
     getInput("position", position);
 
     double vx = 0, vy = 0, vtheta = 0;
-    double kickDir = (position == "defense") ? atan2(brain->data->ball.posToField.y, brain->data->ball.posToField.x + brain->config->fieldDimensions.length / 2) : atan2(-brain->data->ball.posToField.y, brain->config->fieldDimensions.length / 2 - brain->data->ball.posToField.x);
+    double kickDir = brain->data->kickDir;
     double dir_rb_f = brain->data->robotBallAngleToField;
     double deltaDir = toPInPI(kickDir - dir_rb_f);
     double dir = deltaDir > 0 ? -1.0 : 1.0;
@@ -719,7 +773,7 @@ NodeStatus StrikerDecide::tick()
     getInput("decision_in", lastDecision);
     getInput("position", position);
 
-    double kickDir = (position == "defense") ? atan2(brain->data->ball.posToField.y, brain->data->ball.posToField.x + brain->config->fieldDimensions.length / 2) : atan2(-brain->data->ball.posToField.y, brain->config->fieldDimensions.length / 2 - brain->data->ball.posToField.x);
+    double kickDir = brain->data->kickDir;;
     double dir_rb_f = brain->data->robotBallAngleToField;
 
     auto goalPostAngles = brain->getGoalPostAngles(0.5);
@@ -760,7 +814,7 @@ NodeStatus StrikerDecide::tick()
         newDecision = "chasetotarget";
         color = 0xFFFF00FF; // Yellow for dribble
     }
-    else if (angleIsGood && ballInKickRange)
+    else if (angleIsGood)
     {
         newDecision = "kick";
         color = 0xFF0000FF;

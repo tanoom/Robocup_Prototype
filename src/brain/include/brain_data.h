@@ -72,4 +72,9 @@ public:
     Pose2D robot2field(const Pose2D &poseToRobot);
     // Convert a Pose from the field coordinate system to the robot coordinate system.
     Pose2D field2robot(const Pose2D &poseToField);
+
+    // Kick Information
+    double kickDir = 0.; 
+    string kickType = "shoot"; 
+    bool isDirectShoot = false; 
 };

@@ -174,6 +174,24 @@ private:
     double _dir = 1.0; // 1.0 circle back from left, -1.0  circle back from right
 };
 
+class CalcKickDir : public SyncActionNode 
+{
+public:
+    CalcKickDir(const string &name, const NodeConfig &config, Brain *_brain) : SyncActionNode(name, config), brain(_brain) {}
+
+    static PortsList providedPorts()
+    {
+        return {
+            InputPort<double>("cross_threshold", 0.2, "可进门的角度范围小于这个值时, 则传中")
+        };
+    }
+
+    NodeStatus tick() override;
+
+private:
+    Brain *brain;
+};
+
 // Chasing the ball with target direction: Like Chase but steers towards a target position
 class ChaseToTarget : public SyncActionNode
 {
