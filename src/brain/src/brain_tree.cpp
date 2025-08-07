@@ -393,6 +393,11 @@ NodeStatus CalcKickDir::tick()
             .with_radii(0.01)
             .with_draw_order(31)
     );
+    
+    // Log kick type, cross threshold, and cross threshold comparison
+    brain->log->log("kick_dir/kick_type", rerun::TextLog("KickType: " + brain->data->kickType));
+    brain->log->log("kick_dir/cross_threshold", rerun::TextLog("Cross Threshold: " + to_string(crossThreshold)));
+    brain->log->log("kick_dir/is_cross_condition", rerun::TextLog("Goal Too Narrow: " + to_string(thetal - thetar < crossThreshold)));
 
     return NodeStatus::SUCCESS;
 }
