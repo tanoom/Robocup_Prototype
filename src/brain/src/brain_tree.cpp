@@ -511,6 +511,17 @@ NodeStatus ChaseToTarget::tick()
     vx *= linearFactor;
     vy *= linearFactor;
 
+    // Add minimum threshold for vx and vy absolute values
+    double vxMinThreshold = 0.4;  // Minimum absolute value for vx
+    double vyMinThreshold = 0.05;  // Minimum absolute value for vy
+    
+    if (fabs(vx) > 0 && fabs(vx) < vxMinThreshold) {
+        vx = (vx >= 0) ? vxMinThreshold : -vxMinThreshold;
+    }
+    if (fabs(vy) > 0 && fabs(vy) < vyMinThreshold) {
+        vy = (vy >= 0) ? vyMinThreshold : -vyMinThreshold;
+    }
+
     vx = cap(vx, vxLimit, -vxLimit);
     vy = cap(vy, vyLimit, -vyLimit);
     vtheta = cap(vtheta, vthetaLimit, -vthetaLimit);
